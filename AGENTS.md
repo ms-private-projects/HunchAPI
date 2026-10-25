@@ -21,9 +21,11 @@ Repository rules:
   Authorisation is decided on Hunch tables (`owner_user_uid`, `visibility`), never on ms-markets
   rows alone.
 - Connectors (`alpaca-connectors`, `interactivebrokersbackend`) are the brokerage boundary. Hunch
-  services and Jobs call their REST APIs through typed clients, deterministically. No broker
-  credential, Secret name or provider client belongs in this repository. The Agent and the model
-  never call a connector.
+  services and Jobs call their REST APIs through the typed clients in `hunch.connectors`
+  (`VenueConnector` port; `SimulatedConnector` for local development and tests), deterministically.
+  No broker credential, Secret name or provider client belongs in this repository. The Agent and
+  the model never call a connector; `hunch.funding.services` is the only module that submits
+  orders, and only from an approved proposal, an autopilot check that passed, or a withdrawal.
 - Hunch owns portfolio construction and execution logic (targets, proposals, approvals, autopilot
   limits) and delegates the exact trades to the connected venue API.
 - Frozen identities: the migration provider `hunch.migrations:migration` keeps catalog key
@@ -33,6 +35,11 @@ Repository rules:
   `skip_if_schema_behind`. Hosted schema changes come only from the `hunch-migrate` Job; never run
   `metatables migrations upgrade` against a hosted environment. Revisions add first and drop later.
 - Each process attaches the ms-markets runtime once through `hunch.runtime.start_markets_engine`.
+- Money moves only through `HunchRebalanceProposal` rows: fund, rebalance and withdraw create a
+  proposal; approval mode needs the person's decision, autopilot needs `autopilot_check` to pass.
+  Ownership of a venue account is decided by `HunchUserProfileAccount` alone.
+- The ms-markets shims in `hunch.compat` are documented in ADR 0002; remove each when ms-markets
+  fixes the call site, never add behaviour there.
 
 FastAPI surface:
 

@@ -13,13 +13,24 @@ from ..schemas import (
     BuildRequest,
     BuildResponse,
     ExecutionModeRequest,
+    FundingResource,
+    FundRequest,
+    FundResponse,
+    ProposalResource,
     ResourceCollection,
     ResourceDiscoveryResponse,
+    ReviewRequest,
+    ReviewResource,
     RevisionResource,
     TakeCreateRequest,
     TakeResource,
     TakeUpdateRequest,
     WeightsResponse,
+)
+from ..services.fundings import (
+    fund_take_resource,
+    take_funding_resource,
+    withdraw_take_resource,
 )
 from ..services.portfolios import (
     activate_practice_resource,
@@ -29,6 +40,7 @@ from ..services.portfolios import (
     take_revision_resources,
     take_weights_resource,
 )
+from ..services.reviews import list_review_resources, run_review_resource
 from ..services.takes import (
     archive_take_resource,
     create_take_resource,
@@ -240,5 +252,66 @@ def performance(take_uid: str):
 def weights(take_uid: str) -> WeightsResponse:
     try:
         return take_weights_resource(acting_user(), take_uid)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.post(
+    "/{take_uid}/actions/fund",
+    response_model=FundResponse,
+    summary="Fund the take",
+    description=(
+        "Fund a built take into one of my linked accounts. Hunch creates the virtual fund and the "
+        "initial proposal; in approval mode the trades wait for my approval, in autopilot they "
+        "execute within the policy. The venue connector places the orders."
+    ),
+)
+def fund(take_uid: str, payload: FundRequest) -> FundResponse:
+    try:
+        return fund_take_resource(acting_user(), take_uid, payload)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.post(
+    "/{take_uid}/actions/withdraw",
+    response_model=ProposalResource,
+    summary="Withdraw the funding",
+    description="Sell the funded positions back to cash; the take continues in practice mode.",
+)
+def withdraw(take_uid: str) -> ProposalResource:
+    try:
+        return withdraw_take_resource(acting_user(), take_uid)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.get("/{take_uid}/funding", response_model=FundingResource, summary="The take's funding")
+def funding(take_uid: str) -> FundingResource:
+    try:
+        return take_funding_resource(acting_user(), take_uid)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.post(
+    "/{take_uid}/actions/review",
+    response_model=ReviewResource,
+    summary="Review the take now",
+    description="Run today's review: drift, thesis check, and a proposal when the take is funded.",
+)
+def review(take_uid: str, payload: ReviewRequest | None = None) -> ReviewResource:
+    try:
+        return run_review_resource(
+            acting_user(), take_uid, mode=payload.research_mode if payload else None
+        )
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.get("/{take_uid}/reviews", response_model=list[ReviewResource], summary="Daily reviews")
+def reviews(take_uid: str, limit: int = Query(default=30, ge=1, le=365)) -> list[ReviewResource]:
+    try:
+        return list_review_resources(acting_user(), take_uid, limit=limit)
     except Exception as exc:
         raise api_http_error(exc) from exc

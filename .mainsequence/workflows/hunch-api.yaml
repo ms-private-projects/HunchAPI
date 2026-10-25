@@ -19,6 +19,8 @@ resources:
       policy: user
     - key: hunch-take-build
       policy: runner
+    - key: hunch-daily-review
+      policy: runner
     - key: hunch-portfolio-refresh
       policy: runner
     - key: hunch-portfolio-refresh-dispatcher
@@ -39,6 +41,15 @@ resources:
     # Hosted, the API starts builds and refreshes as the Jobs below, never in its own process.
     - name: HUNCH_BUILD_EXECUTION
       value: job
+    # Venue connectors: `live` calls the Alpaca and IBKR connector releases over HTTP at these
+    # URLs (set them to the releases' base URLs before the first push); `simulated` keeps a
+    # paper venue inside Hunch and is for local development only.
+    - name: HUNCH_CONNECTOR_MODE
+      value: live
+    - name: HUNCH_ALPACA_CONNECTOR_URL
+      value: ''
+    - name: HUNCH_IBKR_CONNECTOR_URL
+      value: ''
 # The branch's one Harness Agent: the Hunch Agent. It reaches every project tool through the
 # `hunch` API's MCP and acts for the person whose request it serves (only an Organization admin's
 # push enables this). It reads no tables itself and never calls a venue connector.
@@ -155,6 +166,100 @@ resources:
         expression: '30 1 * * 2-6'
         timezone: UTC
     scheduled_command_args: ['--scheduled']
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+- key: hunch-daily-review
+  kind: job
+  access:
+    branches:
+    - repository: MetaTables
+      policy: reader
+    model_providers:
+    - provider: openai-codex
+      policy: user
+  spec:
+    name: Hunch Daily Review
+    description: 'Review one active take (--take-uid) or every active take (--scheduled): drift, thesis check, proposal or autopilot.'
+    execution_path: src/jobs/run_hunch_daily_review.py
+    cpu_request: '0.5'
+    memory_request: '1'
+    max_runtime_seconds: 3600
+    spot: false
+    task_schedule: null
+    scheduled_command_args: []
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+- key: hunch-daily-review-dispatcher
+  kind: job
+  access:
+    branches:
+    - repository: MetaTables
+      policy: reader
+    resources:
+    - key: hunch-daily-review
+      policy: runner
+  spec:
+    name: Hunch Daily Review Dispatcher
+    description: Start the scheduled review of every active take before the US open on session days.
+    execution_path: src/jobs/run_hunch_daily_review.py
+    cpu_request: '0.25'
+    memory_request: '0.5'
+    max_runtime_seconds: 3600
+    spot: false
+    task_schedule:
+      schedule:
+        type: crontab
+        expression: '0 13 * * 1-5'
+        timezone: UTC
+    scheduled_command_args: ['--scheduled']
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+- key: hunch-execution-sync
+  kind: job
+  access:
+    branches:
+    - repository: MetaTables
+      policy: reader
+  spec:
+    name: Hunch Execution Sync
+    description: Pull order states from the venue connectors, book fills into the takes' funds and expire stale proposals.
+    execution_path: src/jobs/run_hunch_execution_sync.py
+    cpu_request: '0.25'
+    memory_request: '0.5'
+    max_runtime_seconds: 1800
+    spot: false
+    task_schedule:
+      schedule:
+        type: crontab
+        expression: '*/15 13-21 * * 1-5'
+        timezone: UTC
+    scheduled_command_args: ['--scheduled']
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+- key: hunch-leaderboard
+  kind: job
+  access:
+    branches:
+    - repository: MetaTables
+      policy: reader
+  spec:
+    name: Hunch Leaderboard
+    description: Snapshot the ranking of published takes after the refresh.
+    execution_path: src/jobs/run_hunch_leaderboard.py
+    cpu_request: '0.25'
+    memory_request: '0.5'
+    max_runtime_seconds: 1800
+    spot: false
+    task_schedule:
+      schedule:
+        type: crontab
+        expression: '30 2 * * 2-6'
+        timezone: UTC
+    scheduled_command_args: []
     automatic_redeployment:
       enabled: true
       tag_regex: null

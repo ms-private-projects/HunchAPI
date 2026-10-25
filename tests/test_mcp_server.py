@@ -36,6 +36,12 @@ def test_catalog_lists_the_project_tools_with_their_schemas() -> None:
         "hunch_build_take",
         "hunch_query_portfolio",
         "hunch_query_instruments",
+        "hunch_accounts",
+        "hunch_funding",
+        "hunch_proposals",
+        "hunch_reviews",
+        "hunch_leaderboard",
+        "hunch_notifications",
         "hunch_get_job_run_status",
     }
     by_name = {tool.name: tool for tool in tools}

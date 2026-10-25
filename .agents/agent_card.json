@@ -1,7 +1,7 @@
 {
   "name": "Hunch Agent",
   "description": "The one Hunch assistant: helps a person write and understand their takes and work with the portfolios, accounts and proposals Hunch built for them, through verified Hunch API tools.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "capabilities": {
     "extensions": [
       {
@@ -64,6 +64,40 @@
         "Show me the weights and how my take has done since activation."
       ],
       "path": ".agents/skills/mcp_tools/hunch-building-and-performance/SKILL.md"
+    },
+    {
+      "id": "accounts-and-funding",
+      "name": "Linked Accounts, Funding And Execution",
+      "description": "Link a brokerage account, fund a take into it, and handle trade proposals, approvals, autopilot limits, daily reviews and withdrawals.",
+      "tags": [
+        "hunch",
+        "accounts",
+        "funding",
+        "execution",
+        "approvals"
+      ],
+      "examples": [
+        "Link my Alpaca paper account.",
+        "Fund my robots take with 20,000 dollars in approval mode.",
+        "Show me the trades waiting for my approval and approve them.",
+        "Withdraw my grid take."
+      ],
+      "path": ".agents/skills/mcp_tools/hunch-accounts-and-funding/SKILL.md"
+    },
+    {
+      "id": "community",
+      "name": "Leaderboard And Notifications",
+      "description": "Read the leaderboard of published takes and the person's notification feed.",
+      "tags": [
+        "hunch",
+        "leaderboard",
+        "notifications"
+      ],
+      "examples": [
+        "Who is top of the leaderboard?",
+        "Anything new on my takes?"
+      ],
+      "path": ".agents/skills/mcp_tools/hunch-community/SKILL.md"
     }
   ]
 }

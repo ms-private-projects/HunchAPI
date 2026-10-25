@@ -36,7 +36,7 @@ def test_agent_card_names_the_agent_and_lists_existing_skills() -> None:
     card = json.loads(CARD_PATH.read_text(encoding="utf-8"))
     assert agent_card_name() == "Hunch Agent"
     assert card["description"].strip()
-    assert card["version"] == "0.1.0"
+    assert card["version"] == "0.2.0"
     kinds = card["capabilities"]["extensions"][0]["params"]["supportedResponseKinds"]
     assert kinds == ["message"]
     skill_paths = {skill["path"] for skill in card["skills"]}
@@ -91,6 +91,10 @@ def test_workflow_declares_the_api_the_one_agent_and_the_migration() -> None:
         "hunch-take-build",
         "hunch-portfolio-refresh",
         "hunch-portfolio-refresh-dispatcher",
+        "hunch-daily-review",
+        "hunch-daily-review-dispatcher",
+        "hunch-execution-sync",
+        "hunch-leaderboard",
     }
     for job in jobs:
         assert (ROOT / job["spec"]["execution_path"]).is_file(), job["key"]

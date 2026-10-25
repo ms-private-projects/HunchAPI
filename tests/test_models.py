@@ -32,6 +32,11 @@ def test_project_tables_live_in_the_hunch_app_segment() -> None:
         "hunch__take",
         "hunch__take_revision",
         "hunch__portfolio",
+        "hunch__funding",
+        "hunch__rebalance_proposal",
+        "hunch__daily_review",
+        "hunch__leaderboard_snapshot",
+        "hunch__notification",
     }
     for model in all_project_metatable_models():
         assert model.__table__.info["markets_storage_app"] == "hunch"

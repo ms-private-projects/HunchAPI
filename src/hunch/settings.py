@@ -32,6 +32,41 @@ TAKE_VISIBILITIES: tuple[str, ...] = ("private", "public")
 EXECUTION_MODES: tuple[str, ...] = ("practice", "approval", "autopilot")
 REVISION_KINDS: tuple[str, ...] = ("initial", "rebalance", "user_edit", "thesis_check")
 
+# Funding and execution lifecycle (ADR 0003).
+FUNDING_STATUSES: tuple[str, ...] = (
+    "planned",
+    "pending_initial",
+    "active",
+    "withdrawing",
+    "closed",
+    "failed",
+)
+PROPOSAL_TRIGGERS: tuple[str, ...] = ("initial", "drift", "thesis", "user", "withdrawal")
+PROPOSAL_STATUSES: tuple[str, ...] = (
+    "proposed",
+    "approved",
+    "rejected",
+    "expired",
+    "submitted",
+    "partially_filled",
+    "filled",
+    "failed",
+)
+PROPOSAL_OPEN_STATUSES: tuple[str, ...] = ("proposed", "approved", "submitted", "partially_filled")
+REVIEW_OUTCOMES: tuple[str, ...] = ("hold", "flagged", "proposed", "executed")
+NOTIFICATION_KINDS: tuple[str, ...] = (
+    "take_built",
+    "review_hold",
+    "review_proposed",
+    "proposal_awaiting_approval",
+    "proposal_executed",
+    "proposal_failed",
+    "funding_active",
+    "funding_closed",
+    "account_linked",
+    "take_forked",
+)
+
 # Portfolio identity convention for the ms-markets `Portfolio` row behind a `HunchPortfolio`.
 HUNCH_PORTFOLIO_IDENTIFIER_PREFIX = "HUNCH_PORTFOLIO"
 
@@ -56,6 +91,11 @@ RESEARCH_MODES: tuple[str, ...] = ("inference", "heuristic")
 BUILD_EXECUTIONS: tuple[str, ...] = ("inline", "job")
 # Daily bar providers: `synthetic` for local development and tests; `alpaca` is a later phase.
 BARS_PROVIDERS: tuple[str, ...] = ("synthetic",)
+# Venue connectors: `live` calls the Alpaca and IBKR connector applications over HTTP;
+# `simulated` keeps a local venue inside this process that writes the same ms-markets rows.
+CONNECTOR_MODES: tuple[str, ...] = ("live", "simulated")
+SIMULATED_ACCOUNT_IDENTIFIER_PREFIX = "SIM"
+SIMULATED_STARTING_CASH = 100_000.0
 
 
 def _choice(name: str, default: str, allowed: tuple[str, ...]) -> str:
@@ -75,6 +115,21 @@ def build_execution() -> str:
 
 def bars_provider() -> str:
     return _choice("HUNCH_BARS_PROVIDER", "synthetic", BARS_PROVIDERS)
+
+
+def connector_mode() -> str:
+    return _choice("HUNCH_CONNECTOR_MODE", "live", CONNECTOR_MODES)
+
+
+def connector_url(venue: str) -> str | None:
+    """The base URL of a venue connector release (HUNCH_ALPACA_CONNECTOR_URL, ...)."""
+    value = os.environ.get(f"HUNCH_{venue.upper()}_CONNECTOR_URL", "").strip()
+    return value.rstrip("/") or None
+
+
+def connector_release_uid(venue: str) -> str | None:
+    value = os.environ.get(f"HUNCH_{venue.upper()}_CONNECTOR_RELEASE_UID", "").strip()
+    return value or None
 
 
 def inference_provider() -> str:
@@ -105,8 +160,15 @@ __all__ = [
     "BARS_PROVIDERS",
     "BUILD_EXECUTIONS",
     "CASH_ASSET_IDENTIFIER",
+    "CONNECTOR_MODES",
     "EXECUTION_MODES",
+    "FUNDING_STATUSES",
     "HUNCH_PORTFOLIO_IDENTIFIER_PREFIX",
+    "NOTIFICATION_KINDS",
+    "PROPOSAL_OPEN_STATUSES",
+    "PROPOSAL_STATUSES",
+    "PROPOSAL_TRIGGERS",
+    "REVIEW_OUTCOMES",
     "MIGRATION_NAMESPACE",
     "PROJECT_NAMESPACE_SLUG",
     "RESEARCH_MODES",
@@ -124,6 +186,9 @@ __all__ = [
     "VENUE_IBKR",
     "bars_provider",
     "build_execution",
+    "connector_mode",
+    "connector_release_uid",
+    "connector_url",
     "inference_environment_uid",
     "inference_model",
     "inference_provider",

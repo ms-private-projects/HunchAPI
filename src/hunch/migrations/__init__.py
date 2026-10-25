@@ -25,14 +25,19 @@ from msm.models import (
     CalendarTable,
     IndexTable,
     IndexTypeTable,
+    OrderManagerTable,
     PortfolioTable,
+    VirtualFundTable,
 )
 from msm_portfolios.models import SignalMetadataTable
 
 
 def all_project_metatable_models() -> list[type]:
     """Every project-owned MetaTable managed by this migration provider, in dependency order."""
+    from hunch.community import project_community_models
+    from hunch.funding import project_funding_models
     from hunch.instruments import project_instrument_models
+    from hunch.reviews import project_review_models
     from hunch.takes.revisions import project_revision_models
 
     return [
@@ -41,6 +46,9 @@ def all_project_metatable_models() -> list[type]:
         *project_take_models(),
         *project_revision_models(),
         *project_portfolio_models(),
+        *project_funding_models(),
+        *project_review_models(),
+        *project_community_models(),
     ]
 
 
@@ -67,6 +75,8 @@ METADATA = metadata_for_models(
         IndexTable,
         SignalMetadataTable,
         PortfolioTable,
+        VirtualFundTable,
+        OrderManagerTable,
         *all_project_metatable_models(),
     ]
 )

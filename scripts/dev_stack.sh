@@ -29,6 +29,7 @@ TAU_PROVIDER="${HUNCH_LOCAL_TAU_PROVIDER:-openai-codex}"
 TAU_MODEL="${HUNCH_LOCAL_TAU_MODEL:-gpt-5.6-luna}"
 TAU_THINKING="${HUNCH_LOCAL_TAU_THINKING:-medium}"
 RESEARCH_MODE="${HUNCH_RESEARCH_MODE:-heuristic}"
+CONNECTOR_MODE="${HUNCH_CONNECTOR_MODE:-simulated}"
 PY="$ROOT/.venv/bin/python"
 METATABLES="$ROOT/.venv/bin/metatables"
 
@@ -155,10 +156,11 @@ PY
 
 start_api() {
   require_free_port "$API_PORT" "API"
-  log "API: http://127.0.0.1:$API_PORT (research: $RESEARCH_MODE, builds inline)"
+  log "API: http://127.0.0.1:$API_PORT (research: $RESEARCH_MODE, connectors: $CONNECTOR_MODE, builds inline)"
   PYTHONPATH="$ROOT" \
     HUNCH_LOCAL_TAU_ORIGIN="http://127.0.0.1:$TAU_PORT" \
     HUNCH_RESEARCH_MODE="$RESEARCH_MODE" \
+    HUNCH_CONNECTOR_MODE="$CONNECTOR_MODE" \
     HUNCH_BUILD_EXECUTION="${HUNCH_BUILD_EXECUTION:-inline}" \
     "$PY" -c '
 import sys

@@ -18,9 +18,12 @@ ROW_MODEL_NAME = "hunch.runtime"
 
 def project_models() -> list[type[Any]]:
     """Project-owned MetaTables, in dependency order."""
+    from hunch.community import project_community_models
+    from hunch.funding import project_funding_models
     from hunch.instruments import project_instrument_models
     from hunch.portfolios import project_portfolio_models
     from hunch.profiles import project_profile_models
+    from hunch.reviews import project_review_models
     from hunch.takes import project_take_models
     from hunch.takes.revisions import project_revision_models
 
@@ -30,6 +33,9 @@ def project_models() -> list[type[Any]]:
         *project_take_models(),
         *project_revision_models(),
         *project_portfolio_models(),
+        *project_funding_models(),
+        *project_review_models(),
+        *project_community_models(),
     ]
 
 

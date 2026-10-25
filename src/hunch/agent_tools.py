@@ -15,7 +15,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from hunch.settings import EXECUTION_MODES, RESEARCH_MODES, TAKE_STATUSES
+from hunch.api.app.schemas import FundRequest, LinkAccountRequest
+from hunch.settings import (
+    EXECUTION_MODES,
+    PROPOSAL_STATUSES,
+    RESEARCH_MODES,
+    TAKE_STATUSES,
+    VENUES,
+)
 from hunch.takes.services import TakeCreate, TakeUpdate
 
 ToolHandler = Callable[[Mapping[str, Any]], Any]
@@ -314,6 +321,118 @@ def get_job_run_status(arguments: Mapping[str, Any]) -> Any:
     return _require_found(job_run_status(job_run_uid), label="JobRun", uid=job_run_uid)
 
 
+def accounts(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services import accounts as service
+
+    operation = _operation(arguments, {"list", "linkable", "link", "get", "holdings", "revoke"})
+    user = acting_user()
+    if operation == "list":
+        return service.list_linked_accounts(
+            user, include_revoked=bool(arguments.get("include_revoked", False))
+        )
+    if operation == "linkable":
+        venue = _required_text(arguments, "venue")
+        if venue not in VENUES:
+            raise ValueError("venue must be alpaca or ibkr.")
+        return service.linkable_accounts(user, venue)
+    if operation == "link":
+        return service.link_account_resource(user, _request_model(arguments, LinkAccountRequest))
+    link_uid = _required_text(arguments, "link_uid")
+    if operation == "get":
+        return service.get_linked_account(user, link_uid)
+    if operation == "holdings":
+        return service.linked_account_holdings(
+            user, link_uid, capture=bool(arguments.get("capture", False))
+        )
+    return service.revoke_linked_account(user, link_uid)
+
+
+def funding(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services import fundings as service
+
+    operation = _operation(arguments, {"fund", "withdraw", "list", "get", "for_take"})
+    user = acting_user()
+    if operation == "list":
+        return service.list_funding_resources(user)
+    if operation == "get":
+        return service.get_funding_resource(user, _required_text(arguments, "funding_uid"))
+    take_uid = _required_text(arguments, "take_uid")
+    if operation == "fund":
+        return service.fund_take_resource(user, take_uid, _request_model(arguments, FundRequest))
+    if operation == "withdraw":
+        return service.withdraw_take_resource(user, take_uid)
+    return service.take_funding_resource(user, take_uid)
+
+
+def proposals(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services import fundings as service
+
+    operation = _operation(arguments, {"list", "get", "approve", "reject", "sync"})
+    user = acting_user()
+    if operation == "list":
+        return service.list_proposal_resources(
+            user,
+            status=_optional_text(arguments, "status"),
+            take_uid=_optional_text(arguments, "take_uid"),
+            open_only=bool(arguments.get("open_only", False)),
+        )
+    proposal_uid = _required_text(arguments, "proposal_uid")
+    if operation == "get":
+        return service.get_proposal_resource(user, proposal_uid)
+    if operation == "approve":
+        return service.approve_proposal_resource(user, proposal_uid)
+    if operation == "reject":
+        return service.reject_proposal_resource(
+            user, proposal_uid, reason=_optional_text(arguments, "reason")
+        )
+    return service.sync_proposal_resource(user, proposal_uid)
+
+
+def reviews(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services import reviews as service
+
+    operation = _operation(arguments, {"run", "list"})
+    user = acting_user()
+    take_uid = _required_text(arguments, "take_uid")
+    if operation == "run":
+        return service.run_review_resource(
+            user, take_uid, mode=_optional_text(arguments, "research_mode")
+        )
+    limit, _ = _page(arguments, maximum=365)
+    return service.list_review_resources(user, take_uid, limit=limit)
+
+
+def leaderboard(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services.community import leaderboard_response
+
+    _operation(arguments, {"get"})
+    acting_user()
+    limit, _ = _page(arguments, maximum=200)
+    return leaderboard_response(limit=limit)
+
+
+def notifications(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services.community import mark_read_response, notifications_response
+
+    operation = _operation(arguments, {"list", "mark_read"})
+    user = acting_user()
+    if operation == "list":
+        limit, _ = _page(arguments, maximum=200)
+        return notifications_response(
+            user, unread_only=bool(arguments.get("unread_only", False)), limit=limit
+        )
+    uids = arguments.get("uids")
+    if uids is not None and not isinstance(uids, list):
+        raise ValueError("uids must be a list of notification uids.")
+    return mark_read_response(user, [str(uid) for uid in uids] if uids is not None else None)
+
+
 # Catalog ----------------------------------------------------------------------------------------
 
 PAGE = _page_properties()
@@ -495,6 +614,183 @@ PROJECT_AGENT_TOOLS: tuple[ProjectAgentTool, ...] = (
         handler=query_instruments,
     ),
     ProjectAgentTool(
+        name="hunch_accounts",
+        label="Linked Accounts",
+        description=(
+            "The person's linked brokerage accounts: list them, see which connector-registered "
+            "accounts could be linked, link one (keys are entered on the connector's site, never "
+            "here), read its holdings, or revoke the link."
+        ),
+        parameters=_operations(
+            _operation_case(
+                "list",
+                properties={
+                    "include_revoked": {"type": "boolean", "description": "Include revoked links."}
+                },
+            ),
+            _operation_case(
+                "linkable",
+                properties={"venue": _enum(VENUES, "alpaca or ibkr.")},
+                required=("venue",),
+            ),
+            _operation_case(
+                "link",
+                properties={"request": _request(LinkAccountRequest, "The account to link.")},
+                required=("request",),
+            ),
+            _operation_case("get", properties={"link_uid": _uid("link")}, required=("link_uid",)),
+            _operation_case(
+                "holdings",
+                properties={
+                    "link_uid": _uid("link"),
+                    "capture": {
+                        "type": "boolean",
+                        "description": "Ask the connector for a fresh snapshot first.",
+                    },
+                },
+                required=("link_uid",),
+            ),
+            _operation_case(
+                "revoke", properties={"link_uid": _uid("link")}, required=("link_uid",)
+            ),
+        ),
+        execution_mode="sequential",
+        handler=accounts,
+    ),
+    ProjectAgentTool(
+        name="hunch_funding",
+        label="Fund A Take",
+        description=(
+            "Fund a built take into a linked account (approval or autopilot), withdraw it back to "
+            "cash, or read fundings with NAV, cash, positions and return on the funded notional. "
+            "Funding and withdrawing move real money: act only on the person's explicit go-ahead."
+        ),
+        parameters=_operations(
+            _operation_case(
+                "fund",
+                properties={
+                    "take_uid": _uid("take"),
+                    "request": _request(FundRequest, "Account, notional, mode and policy."),
+                },
+                required=("take_uid", "request"),
+            ),
+            _operation_case(
+                "withdraw", properties={"take_uid": _uid("take")}, required=("take_uid",)
+            ),
+            _operation_case("list"),
+            _operation_case(
+                "get", properties={"funding_uid": _uid("funding")}, required=("funding_uid",)
+            ),
+            _operation_case(
+                "for_take", properties={"take_uid": _uid("take")}, required=("take_uid",)
+            ),
+        ),
+        execution_mode="sequential",
+        handler=funding,
+        timeout_seconds=BUILD_TOOL_TIMEOUT_SECONDS,
+    ),
+    ProjectAgentTool(
+        name="hunch_proposals",
+        label="Trade Proposals",
+        description=(
+            "Trade proposals of the person's funded takes: list or read them (legs, trigger, "
+            "status, autopilot check, order states), approve one so the venue connector executes "
+            "it, reject one, or sync its order states. Approve only on the person's explicit word."
+        ),
+        parameters=_operations(
+            _operation_case(
+                "list",
+                properties={
+                    "status": _enum(PROPOSAL_STATUSES, "Only proposals in this status."),
+                    "take_uid": _uid("take"),
+                    "open_only": {"type": "boolean", "description": "Only unsettled proposals."},
+                },
+            ),
+            _operation_case(
+                "get", properties={"proposal_uid": _uid("proposal")}, required=("proposal_uid",)
+            ),
+            _operation_case(
+                "approve",
+                properties={"proposal_uid": _uid("proposal")},
+                required=("proposal_uid",),
+            ),
+            _operation_case(
+                "reject",
+                properties={
+                    "proposal_uid": _uid("proposal"),
+                    "reason": _string("Why the person rejects it."),
+                },
+                required=("proposal_uid",),
+            ),
+            _operation_case(
+                "sync", properties={"proposal_uid": _uid("proposal")}, required=("proposal_uid",)
+            ),
+        ),
+        execution_mode="sequential",
+        handler=proposals,
+        timeout_seconds=BUILD_TOOL_TIMEOUT_SECONDS,
+    ),
+    ProjectAgentTool(
+        name="hunch_reviews",
+        label="Daily Reviews",
+        description=(
+            "Run today's review of a take (drift, thesis check, proposal when funded) or list "
+            "its past reviews."
+        ),
+        parameters=_operations(
+            _operation_case(
+                "run",
+                properties={
+                    "take_uid": _uid("take"),
+                    "research_mode": _enum(RESEARCH_MODES, "Override the configured mode."),
+                },
+                required=("take_uid",),
+            ),
+            _operation_case(
+                "list",
+                properties={"take_uid": _uid("take"), **_page_properties(maximum=365)},
+                required=("take_uid",),
+            ),
+        ),
+        execution_mode="sequential",
+        handler=reviews,
+        timeout_seconds=BUILD_TOOL_TIMEOUT_SECONDS,
+    ),
+    ProjectAgentTool(
+        name="hunch_leaderboard",
+        label="Leaderboard",
+        description="Published takes ranked by return since activation (practice results are simulated).",
+        parameters=_operations(_operation_case("get", properties=_page_properties(maximum=200))),
+        execution_mode="parallel",
+        handler=leaderboard,
+    ),
+    ProjectAgentTool(
+        name="hunch_notifications",
+        label="Notifications",
+        description="The person's notification feed: list it (optionally unread only) or mark it read.",
+        parameters=_operations(
+            _operation_case(
+                "list",
+                properties={
+                    "unread_only": {"type": "boolean", "description": "Only unread items."},
+                    **_page_properties(maximum=200),
+                },
+            ),
+            _operation_case(
+                "mark_read",
+                properties={
+                    "uids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Notification uids; omit to mark everything read.",
+                    }
+                },
+            ),
+        ),
+        execution_mode="sequential",
+        handler=notifications,
+    ),
+    ProjectAgentTool(
         name="hunch_get_job_run_status",
         label="Get Hunch JobRun Status",
         description="Read one Hunch build or refresh JobRun status and its sanitized failure summary.",
@@ -514,12 +810,18 @@ __all__ = [
     "BUILD_TOOL_TIMEOUT_SECONDS",
     "PROJECT_AGENT_TOOLS",
     "ProjectAgentTool",
+    "accounts",
     "build_take",
+    "funding",
     "get_job_run_status",
+    "leaderboard",
     "manage_take",
+    "notifications",
     "profile",
     "project_state",
+    "proposals",
     "query_instruments",
     "query_portfolio",
     "query_takes",
+    "reviews",
 ]

@@ -27,14 +27,24 @@ Architecture decisions live under [docs/adrs/](docs/adrs/).
 api/app/main.py          # deployed FastAPI entry point (re-exports hunch.api.app.main:app)
 api/agent/main.py        # the Hunch Agent: app = ms_tau_sdk.create_app()
 src/hunch/               # the installable package
-  profiles/              # HunchUserProfile, HunchUserProfileAccount (linked venue accounts)
-  takes/                 # HunchTake
-  portfolios/            # HunchPortfolio (ms-markets Portfolio extension) and its services
-  migrations/            # `hunch.migrations:migration` provider, schema gate, revisions
+  profiles/              # HunchUserProfile, HunchUserProfileAccount, account linking (accounts.py)
+  instruments/           # HunchInstrument universe (FIGI keyed) over ms-markets Assets
+  market_data/           # HunchDailyBars (ExternalPricesTS) and the bar providers
+  research/              # thesis -> candidates (recorded inference or heuristic) -> guardrails
+  takes/                 # HunchTake, HunchTakeRevision and the take lifecycle
+  portfolios/            # HunchPortfolio, the basket signal, the ms-markets portfolio graph, builds
+  connectors/            # the venue connector port: Alpaca and IBKR HTTP clients, simulated venue
+  funding/               # HunchFunding, HunchRebalanceProposal, ms-markets ledger, execution flow
+  reviews/               # HunchDailyReview and the daily review
+  community/             # leaderboard snapshots and notifications
+  operations/            # build/review orchestration (inline locally, Jobs hosted)
+  migrations/            # `hunch.migrations:migration` provider, schema gate, revisions 0001-0003
   api/app/               # routers, services, schemas, identity, errors, capabilities, mcp_server
   agent_tools.py         # the tool catalog the API serves at /mcp
+  compat.py              # shims for ms-markets 2.2.12 (see ADR 0002)
   runtime.py             # the single msm.start_engine per process
 src/jobs/                # Job launchers run by path (not in the wheel)
+scripts/dev_stack.sh     # local stack: MetaTables, loopback API, local Tau, the site
 .tau/SYSTEM.md           # the Agent's runtime instructions
 .agents/                 # agent_card.json and the published skills (.agents/skills/mcp_tools)
 .mainsequence/workflows/ # API, Agent and migration Job declarations (workflow API 3.0.0)
@@ -65,22 +75,39 @@ uv export --locked --no-dev --no-hashes --format requirements-txt -o requirement
 .venv/bin/ruff format --check api src tests
 ```
 
-## Run the API locally
+## Run everything locally
 
-Every request needs a caller the Main Sequence SDK request identity verifies. Sign in once with the
-SDK CLI, then send your session's token:
+`scripts/dev_stack.sh` starts the local MetaTables API (SQLite), the loopback Hunch API on
+127.0.0.1:8601 (it presents your SDK sign-in on every request, so the browser and `curl` need no
+header), the local Tau runtime of the Hunch Agent on 127.0.0.1:8602 and the Command Center site on
+127.0.0.1:5601 (the sibling `hunch` repository). Prepare the runtime once:
 
 ```bash
 mainsequence login
-uv run uvicorn api.app.main:app --host 127.0.0.1 --port 8001
+.venv/bin/metatables init --local && .venv/bin/metatables serve --local --no-open-browser &
+.venv/bin/metatables --local migrations upgrade --provider msm_migrations:migration head
+.venv/bin/python scripts/local_prepare_runtime.py
+.venv/bin/metatables --local migrations upgrade --provider hunch.migrations:migration head
 ```
 
 ```bash
-curl -H "Authorization: Bearer $(.venv/bin/mainsequence auth token)" \
-  http://127.0.0.1:8001/v1/project-state/capabilities
+scripts/dev_stack.sh all      # or: api | tau | site
 ```
 
-The API attaches the ms-markets runtime at startup, so the MetaTables must be migrated first.
+Local defaults: builds run inline with heuristic research (`HUNCH_RESEARCH_MODE`), and the venue
+connectors are simulated (`HUNCH_CONNECTOR_MODE=simulated`: a paper venue inside Hunch that fills
+orders at the last stored close and writes the same ms-markets rows a connector would). Set
+`HUNCH_CONNECTOR_MODE=live` with `HUNCH_ALPACA_CONNECTOR_URL` / `HUNCH_IBKR_CONNECTOR_URL` to call
+the connector releases, and `HUNCH_RESEARCH_MODE=inference` with `HUNCH_INFERENCE_ENVIRONMENT_UID`
+to research through recorded inference (ADR 0002 explains the local finding).
+
+```bash
+curl http://127.0.0.1:8601/v1/project-state/capabilities
+curl -X POST http://127.0.0.1:8601/v1/profile/accounts/actions/link \
+  -H 'content-type: application/json' -d '{"venue":"alpaca"}'
+```
+
+The hosted entry point `api.app.main:app` verifies the platform's caller assertion instead.
 
 ## Schema
 
@@ -104,6 +131,10 @@ one `hunch-agent` Harness Agent (acting for the requester, tools from the `hunch
 
 ## Status
 
-Phase 0 of the plan: dependencies on SDK 9, ms-markets 2.2 and ms-tau-sdk; the four foundation
-tables with their first migration; the API with project state and the MCP server; the Agent with
-one published skill; the workflow. Takes cannot be created, built, funded or traded yet.
+Phases 0 to 3 of the plan run locally end to end: a thesis becomes a built take with a basket, a
+model portfolio and a performance record; it can be practiced, published, forked and ranked; a
+linked account can fund it in approval or autopilot mode, proposals execute through the venue
+connector (simulated locally), the daily review watches drift and the thesis, and notifications
+report every step. Hosted execution waits for the Alpaca connector's execution capability (plan
+§6.1); Interactive Brokers executes manually (ADR 0003). Email channels and external research
+sources (phase 4) are not started.

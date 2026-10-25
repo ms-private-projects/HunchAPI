@@ -19,9 +19,27 @@ def bad_request(message: str) -> HTTPException:
 
 def api_http_error(exc: Exception) -> HTTPException:
     """Translate a service exception into the shared `{code, message, retryable}` error body."""
+    from hunch.connectors.base import ConnectorCapabilityUnavailable, ConnectorError
+    from hunch.funding.services import FundingError
+    from hunch.profiles.accounts import LinkError
     from hunch.research.guardrails import GuardrailError
     from hunch.research.models import ResearchError
 
+    if isinstance(exc, ConnectorCapabilityUnavailable):
+        return api_error(status_code=409, code="capability_unavailable", message=str(exc))
+    if isinstance(exc, ConnectorError):
+        logger.warning("Connector failure (%s): %s", exc.code, exc)
+        status = 503 if exc.retryable else 502
+        return api_error(
+            status_code=status,
+            code=f"connector_{exc.code}",
+            message=str(exc),
+            retryable=exc.retryable,
+        )
+    if isinstance(exc, FundingError):
+        return api_error(status_code=409, code="funding_rule", message=str(exc))
+    if isinstance(exc, LinkError):
+        return api_error(status_code=409, code="link_rule", message=str(exc))
     if isinstance(exc, GuardrailError):
         return api_error(status_code=409, code="basket_not_investable", message=str(exc))
     if isinstance(exc, ResearchError):

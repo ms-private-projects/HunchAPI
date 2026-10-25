@@ -118,6 +118,77 @@ def _user_prompt(
     )
 
 
+class RecordedCompletion:
+    """The parsed JSON answer of one recorded completion and its platform identifiers."""
+
+    def __init__(
+        self, content: dict[str, Any], request_uid: str | None, conversation_uid: str | None
+    ):
+        self.content = content
+        self.request_uid = request_uid
+        self.conversation_uid = conversation_uid
+
+
+def inference_client(client: Any | None = None) -> Any:
+    from mainsequence.client import InferenceClient
+
+    if client is not None:
+        return client
+    environment = inference_environment_uid()
+    return (
+        InferenceClient(organization_environment_uid=environment)
+        if environment
+        else InferenceClient()
+    )
+
+
+def recorded_completion(
+    *,
+    system: str,
+    user: str,
+    schema: dict[str, Any],
+    operation: str,
+    metadata: dict[str, Any],
+    idempotency_prefix: str,
+    timeout: int = 240,
+    client: Any | None = None,
+    what: str = "research",
+) -> RecordedCompletion:
+    """One recorded, schema-constrained completion; raises ``ResearchError`` on any failure."""
+    inference = inference_client(client)
+    try:
+        result = inference.complete(
+            provider=inference_provider(),
+            model=inference_model(),
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            thinking_level=inference_thinking(),
+            response_schema=schema,
+            metadata={"operation": operation, **metadata},
+            idempotency_key=f"{idempotency_prefix}-{uuid.uuid4().hex[:8]}",
+            timeout=timeout,
+        )
+    except Exception as exc:  # the client's own errors carry provider internals
+        raise ResearchError(f"The {what} model call failed ({type(exc).__name__}).") from exc
+    if result.status != "completed" or not result.content_available or not result.output:
+        raise ResearchError(f"The {what} model call did not complete (status {result.status}).")
+    content = result.output.get("content") if isinstance(result.output, dict) else None
+    if isinstance(content, str):
+        try:
+            content = json.loads(content)
+        except ValueError as exc:
+            raise ResearchError(f"The {what} model returned no JSON object.") from exc
+    if not isinstance(content, dict):
+        raise ResearchError(f"The {what} model returned no JSON object.")
+    return RecordedCompletion(
+        content,
+        str(result.request_uid) if result.request_uid else None,
+        str(result.conversation_uid) if result.conversation_uid else None,
+    )
+
+
 def inference_research(
     take: Take,
     instruments: Sequence[HunchInstrument],
@@ -126,48 +197,20 @@ def inference_research(
     client: Any | None = None,
 ) -> ResearchOutput:
     """One recorded completion; raises ``ResearchError`` when no usable answer comes back."""
-    from mainsequence.client import InferenceClient
-
     constraints = TakeConstraints.model_validate(take.constraints_json or {})
     tradable = [row for row in instruments if row.is_tradable]
     if not tradable:
         raise ResearchError("The instrument universe is empty.")
-    environment = inference_environment_uid()
-    inference = client or (
-        InferenceClient(organization_environment_uid=environment)
-        if environment
-        else InferenceClient()
+    completion = recorded_completion(
+        system=SYSTEM_PROMPT,
+        user=_user_prompt(take, constraints, tradable),
+        schema=response_schema([row.ticker for row in tradable]),
+        operation="hunch-take-research",
+        metadata={"take_uid": str(take.uid), "revision": revision},
+        idempotency_prefix=f"hunch-take-{take.uid}-revision-{revision}",
+        client=client,
     )
-    try:
-        result = inference.complete(
-            provider=inference_provider(),
-            model=inference_model(),
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": _user_prompt(take, constraints, tradable)},
-            ],
-            thinking_level=inference_thinking(),
-            response_schema=response_schema([row.ticker for row in tradable]),
-            metadata={
-                "operation": "hunch-take-research",
-                "take_uid": str(take.uid),
-                "revision": revision,
-            },
-            idempotency_key=f"hunch-take-{take.uid}-revision-{revision}-{uuid.uuid4().hex[:8]}",
-            timeout=240,
-        )
-    except Exception as exc:  # the client's own errors carry provider internals
-        raise ResearchError(f"The research model call failed ({type(exc).__name__}).") from exc
-    if result.status != "completed" or not result.content_available or not result.output:
-        raise ResearchError(f"The research model call did not complete (status {result.status}).")
-    content = result.output.get("content") if isinstance(result.output, dict) else None
-    if isinstance(content, str):
-        try:
-            content = json.loads(content)
-        except ValueError as exc:
-            raise ResearchError("The research model returned no JSON object.") from exc
-    if not isinstance(content, dict):
-        raise ResearchError("The research model returned no JSON object.")
+    content = completion.content
     try:
         brief = ResearchBrief.model_validate(
             {**content.get("brief", {}), "horizon_months": constraints.horizon_months}
@@ -180,9 +223,16 @@ def inference_research(
         brief=brief,
         candidates=candidates,
         rationale_md=str(content.get("rationale_md") or ""),
-        inference_request_uids=[str(result.request_uid)] if result.request_uid else [],
-        conversation_uid=str(result.conversation_uid) if result.conversation_uid else None,
+        inference_request_uids=[completion.request_uid] if completion.request_uid else [],
+        conversation_uid=completion.conversation_uid,
     )
 
 
-__all__ = ["SYSTEM_PROMPT", "inference_research", "response_schema"]
+__all__ = [
+    "RecordedCompletion",
+    "SYSTEM_PROMPT",
+    "inference_client",
+    "inference_research",
+    "recorded_completion",
+    "response_schema",
+]

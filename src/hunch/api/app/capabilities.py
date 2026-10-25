@@ -43,9 +43,14 @@ CAPABILITIES: tuple[Capability, ...] = (
         name="Users And Linked Accounts",
         purpose="Hunch users and the venue accounts (Alpaca, IBKR) linked to them.",
         contents=("HunchUserProfile", "HunchUserProfileAccount"),
-        actions=("read my profile", "update handle and display name"),
+        actions=(
+            "read my profile",
+            "update handle and display name",
+            "link a venue account",
+            "revoke a link",
+            "read linked account holdings",
+        ),
         surfaces=("api", "mcp"),
-        availability="partial",
     ),
     Capability(
         key="takes",
@@ -92,11 +97,42 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         key="funding",
         name="Funding And Execution",
-        purpose="Link venue accounts, fund takes, propose and execute rebalances.",
-        contents=(),
-        actions=(),
-        surfaces=(),
-        availability="partial",
+        purpose=(
+            "Fund a take into a linked account, propose trades, approve them or let autopilot "
+            "act within limits, and delegate the orders to the venue connector."
+        ),
+        contents=(
+            "HunchFunding",
+            "HunchRebalanceProposal",
+            "ms-markets VirtualFund, VirtualFundHoldingsTS, TargetPositionsTS",
+            "ms-markets OrderManager, OrdersTS, TradesTS",
+        ),
+        actions=(
+            "fund",
+            "withdraw",
+            "list fundings",
+            "list proposals",
+            "approve",
+            "reject",
+            "sync",
+        ),
+        surfaces=("api", "mcp", "job"),
+    ),
+    Capability(
+        key="reviews",
+        name="Daily Reviews",
+        purpose="Review every active take daily: drift, thesis check, proposal or autopilot.",
+        contents=("HunchDailyReview",),
+        actions=("review now", "list reviews"),
+        surfaces=("api", "mcp", "job"),
+    ),
+    Capability(
+        key="community",
+        name="Leaderboard And Notifications",
+        purpose="Rank published takes by return since activation; keep every person informed.",
+        contents=("HunchLeaderboardSnapshot", "HunchNotification"),
+        actions=("read leaderboard", "list notifications", "mark read"),
+        surfaces=("api", "mcp", "job"),
     ),
 )
 
