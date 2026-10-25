@@ -47,10 +47,14 @@ one take they own or that is public. Limits are 1–100 and offsets are multiple
 
 ## Profile
 
-`hunch_profile` operation `get` returns the person's handle and display name, created on first
-contact; `update` changes them. Handles are 3 to 32 lower-case letters, digits and underscores and
-must be unique.
+`hunch_profile` operation `get` returns the person's handle, display name and email digest
+preferences, created on first contact; `update` changes them. Handles are 3 to 32 lower-case
+letters, digits and underscores and must be unique. `email_digest: true` opts the person into the
+daily email digest (reviews, executions, proposals waiting for them); `email_address` overrides the
+platform account's email, and an empty value clears the override. Set them only when the person
+asks, and confirm the address back to them.
 
-## Not available yet
+## Beyond authoring
 
-Building the basket, funding, proposals and execution come in later releases; say so plainly.
+Building and performance, linked accounts and funding, proposals, reviews, the leaderboard and
+notifications have their own skills; read the matching one before those workflows.
