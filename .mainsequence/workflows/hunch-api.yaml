@@ -41,19 +41,26 @@ resources:
     # Hosted, the API starts builds and refreshes as the Jobs below, never in its own process.
     - name: HUNCH_BUILD_EXECUTION
       value: job
-    # Venue connectors: `live` calls the Alpaca and IBKR connector releases over HTTP at these
-    # URLs (set them to the releases' base URLs before the first push); `simulated` keeps a
-    # paper venue inside Hunch and is for local development only. Calling another repository's
-    # release also needs `access.branches: [{repository: <connector repository>, policy: user}]`
-    # on this API and on the hunch-daily-review and hunch-execution-sync Jobs (plan §3.3); add
-    # them when the connector releases exist, with HUNCH_<VENUE>_CONNECTOR_RELEASE_UID if the
-    # gateway routes by release UID.
+    # Venue connectors: `live` calls the Alpaca and IBKR connector releases by their ResourceRelease
+    # UID (the platform grants this workload an RPC URL and token through resolve-runtime-access);
+    # `simulated` keeps a paper venue inside Hunch and is for local development only. Neither
+    # connector API is deployed yet (2026-10-25): set each UID from
+    # `GET /api/v1/resource-releases/?name=<key>&release_kind=fastapi&organization_environment_uid=<env>`
+    # once the connector workflow is pushed to this Environment's branch, and give this API and the
+    # hunch-daily-review and hunch-execution-sync Jobs `access.branches:
+    # [{repository: alpaca-connectors, policy: reader}]` (branch `reader` makes the workload a
+    # release `viewer`, which may call it). An empty UID leaves the venue disabled in the site.
     - name: HUNCH_CONNECTOR_MODE
       value: live
-    - name: HUNCH_ALPACA_CONNECTOR_URL
+    - name: HUNCH_ALPACA_CONNECTOR_RELEASE_UID
       value: ''
-    - name: HUNCH_IBKR_CONNECTOR_URL
+    - name: HUNCH_IBKR_CONNECTOR_RELEASE_UID
       value: ''
+    # Research sources: `quant` always; add `finnhub` after declaring `access.secrets:
+    # [{name: HUNCH_FINNHUB_API_KEY, policy: value_reader}]` on this API and the build and
+    # review Jobs and exporting the Secret's value as HUNCH_FINNHUB_API_KEY in the runtime.
+    - name: HUNCH_RESEARCH_SOURCES
+      value: quant
 # The branch's one Harness Agent: the Hunch Agent. It reaches every project tool through the
 # `hunch` API's MCP and acts for the person whose request it serves (only an Organization admin's
 # push enables this). It reads no tables itself and never calls a venue connector.
@@ -112,8 +119,10 @@ resources:
     - repository: MetaTables
       policy: reader
     model_providers:
-    # Research runs through recorded inference with this credential; adjust before the first push.
+    # Research runs through recorded inference with this credential (custom_id as configured in
+    # the Environment; the development backend has no recorded-inference adapter for it yet).
     - provider: openai-codex
+      custom_id: openai-codex
       policy: user
   spec:
     name: Hunch Take Build
@@ -181,6 +190,7 @@ resources:
       policy: reader
     model_providers:
     - provider: openai-codex
+      custom_id: openai-codex
       policy: user
   spec:
     name: Hunch Daily Review

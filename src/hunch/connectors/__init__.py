@@ -33,16 +33,22 @@ def connector_for(venue: str) -> VenueConnector:
 
         connector: VenueConnector = SimulatedConnector(venue)
     else:
-        from hunch.connectors.http import ConnectorHTTPClient
+        from hunch.connectors.http import ConnectorHTTPClient, ReleaseHTTPClient
 
+        release_uid = connector_release_uid(venue)
         base_url = connector_url(venue)
-        if base_url is None:
+        if release_uid:
+            client: ConnectorHTTPClient = ReleaseHTTPClient(release_uid)
+        elif base_url:
+            client = ConnectorHTTPClient(base_url)
+        else:
             raise ConnectorError(
-                f"No connector URL is configured for {venue} (HUNCH_{venue.upper()}_CONNECTOR_URL).",
+                f"No connector is configured for {venue}: set "
+                f"HUNCH_{venue.upper()}_CONNECTOR_RELEASE_UID (hosted) or "
+                f"HUNCH_{venue.upper()}_CONNECTOR_URL (local).",
                 code="dependency_unavailable",
                 retryable=False,
             )
-        client = ConnectorHTTPClient(base_url, release_uid=connector_release_uid(venue))
         if venue == "alpaca":
             from hunch.connectors.alpaca import AlpacaConnector
 
@@ -65,8 +71,11 @@ def connector_status(venue: str) -> dict[str, Any]:
     return {
         "venue": venue,
         "mode": mode,
-        "configured": mode == "simulated" or connector_url(venue) is not None,
+        "configured": mode == "simulated"
+        or connector_url(venue) is not None
+        or connector_release_uid(venue) is not None,
         "base_url": None if mode == "simulated" else connector_url(venue),
+        "release_uid": None if mode == "simulated" else connector_release_uid(venue),
     }
 
 

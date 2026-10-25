@@ -1,0 +1,101 @@
+# Hosted deploy
+
+How Hunch reaches the platform: what deploys from which branch, which values each Environment
+needs, and the order that makes the pieces find each other. Nothing here holds a credential.
+
+## Environments and branches (checked 2026-10-25)
+
+| Environment | Branch | UID |
+| --- | --- | --- |
+| development | `development` | `58218213-5e4e-43de-a5bd-6757f4e1c8f6` |
+| Production | `main` | `18595d12-f92a-4960-84cd-0c6798a1ad25` |
+
+The platform deploys from pushes to an Environment's branch. `phase-0-foundation` (backend) and
+`command-center-site` (site) are feature branches: pushing them deploys nothing. A deploy starts
+when they are merged (or fast-forwarded) into `development`, then `main`.
+
+Platform repository names: `HunchAPI` (this repository), `Hunch` (the site), `alpaca-connectors`,
+`InteractiveBrokersBackend`, `MetaTables`.
+
+## What each workflow declares
+
+`HunchAPI/.mainsequence/workflows/hunch-api.yaml` (one unscoped file, both Environments):
+
+- `hunch` FastAPI (`/mcp` enabled), `hunch-agent` Harness Agent, Jobs `hunch-migrate`,
+  `hunch-take-build`, `hunch-portfolio-refresh` (+dispatcher), `hunch-daily-review`
+  (+dispatcher), `hunch-execution-sync`, `hunch-leaderboard`, `hunch-email-digest`.
+- Execution steps: image → migrate → deploy API; agent image → deploy Agent.
+
+`Hunch/.mainsequence/workflows/hunch-site.yaml`: the `hunch-site` static site whose
+`build_environment.VITE_HUNCH_API_RELEASE_UID` names the API release by repository and key
+(`HunchAPI` / `hunch`), so each Environment's build gets its own release UID without a pinned value.
+
+## Values to fill per Environment
+
+| Where | Variable | Value | When |
+| --- | --- | --- | --- |
+| `hunch` API | `HUNCH_CORS_ORIGINS` | `https://*.site-dev.main-sequence.app` (development); the production site origin on `main` | before the first push |
+| `hunch` API | `HUNCH_BUILD_EXECUTION` | `job` | set |
+| `hunch` API | `HUNCH_CONNECTOR_MODE` | `live` | set |
+| `hunch` API, review and sync Jobs | `HUNCH_ALPACA_CONNECTOR_RELEASE_UID` | the `alpaca` FastAPI release UID in that Environment | after the Alpaca connector API is deployed there (not yet, 2026-10-25) |
+| same | `HUNCH_IBKR_CONNECTOR_RELEASE_UID` | the IBKR API release UID | after that repository publishes its API (today only Jobs) |
+| `hunch` API, build and review Jobs | `HUNCH_RESEARCH_SOURCES` | `quant`, or `quant,finnhub` with the Secret below | optional |
+| `hunch-email-digest` Job | `HUNCH_EMAIL_SENDER` | `platform` | set |
+| `hunch-email-digest` Job | `HUNCH_SITE_URL` | the site's Command Center link in that Environment (`.../app/links/<site uid>`) | after the first site deploy |
+| `hunch-agent` | provider / model / thinking | the Environment's model-provider credential | before the first push |
+
+Find release UIDs with the Environment filter, never by name alone:
+
+```bash
+curl -H "Authorization: Bearer $(.venv/bin/mainsequence auth token)" \
+  "$MAINSEQUENCE_ENDPOINT/api/v1/resource-releases/?name=alpaca&release_kind=fastapi&organization_environment_uid=<env uid>"
+```
+
+## Access to declare when the pieces exist
+
+- Connector calls: `access.branches: [{repository: alpaca-connectors, policy: reader}]` on the
+  `hunch` API, `hunch-daily-review` and `hunch-execution-sync` (branch `reader` makes the workload
+  a release `viewer`, which may call the release). The runtime then resolves the release's RPC URL
+  and token through `resolve-runtime-access` (`hunch.connectors.http.ReleaseHTTPClient`).
+- Finnhub: `access.secrets: [{name: HUNCH_FINNHUB_API_KEY, policy: value_reader}]` on the API and
+  the build and review Jobs, and the Secret's value exported as `HUNCH_FINNHUB_API_KEY`.
+- Email: the `platform` sender calls `Notification.send(include_email=True)` as the Job workload;
+  confirm with the platform team that a workload may notify a person by email.
+- Recorded inference: the Jobs declare `model_providers` for `openai-codex`; the provider must have
+  a recorded-inference adapter on the target backend (the development backend had none on
+  2026-10-25, ADR 0002). Set `HUNCH_RESEARCH_MODE=heuristic` on the API and Jobs to deploy without
+  it.
+
+## Order of operations
+
+1. Merge `phase-0-foundation` into `development` and push. The platform builds the image, runs
+   `hunch-migrate` (ms-markets schema must already be at its head in that Environment), deploys
+   the `hunch` API, then the Agent. Confirm with
+   `mainsequence code-repository resources list` and the release logs.
+2. Merge `command-center-site` into the site's `development` and push: the site builds with the
+   development API release resolved by name.
+3. Open the site in Command Center; create, build and activate a practice take; publish it; check
+   the leaderboard, notifications and the Assistant (the configuration endpoint reports the Agent).
+4. Set `HUNCH_SITE_URL` from the site's link and push; opt a profile into the digest; run
+   `hunch-email-digest --user-uid <uid> --dry-run` from the Jobs page, then for real.
+5. When the Alpaca connector API ships its execution capability: set
+   `HUNCH_ALPACA_CONNECTOR_RELEASE_UID`, add the branch access, push, link an account from the
+   connector's site, fund a take with a small notional in approval mode, approve, sync.
+6. Repeat on `main` with production values; production research mode stays `inference` only once
+   the provider adapter is confirmed.
+
+## Validation
+
+Validated on 2026-10-25 against each repository's registered branch (`main`, Production):
+`hunch-site.yaml` is valid; `hunch-api.yaml` reports only `source_not_indexed` for the Agent's
+`api/agent/main.py` (and the `resource_uid` the validator then asks for), because `main` does not
+carry the file yet. Both clear once the branch that holds the code is registered. Re-run the
+validation against the `development` branch UID right after the merge.
+
+Validate every workflow change before committing:
+
+```bash
+POST /api/v1/code-repository-branches/<branch uid>/validate-workflow/  {"path": ".mainsequence/workflows/hunch-api.yaml", "content": "..."}
+```
+
+The branch UID comes from `GET /api/v1/code-repository-branches/?code_repository_uid=<repo uid>`.

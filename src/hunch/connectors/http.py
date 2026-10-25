@@ -2,8 +2,15 @@
 
 Every connector exposes the same Command Center contracts (collections with ``items`` and
 ``pageInfo``, errors as ``{"detail": {"code", "message", "retryable"}}``) behind the SDK request
-identity. Locally the client presents this process's SDK sign-in; hosted, the platform signs the
-Hunch workload (and the requester, when the call is requester-bound) into the caller assertion.
+identity. Two transports:
+
+- ``ConnectorHTTPClient(base_url)``: a fixed origin with this process's SDK sign-in (local
+  development against a connector running on the same machine).
+- ``ReleaseHTTPClient(release_uid)``: the hosted path. The Hunch workload asks the platform for
+  runtime access to the connector's ``ResourceRelease`` (``resolve-runtime-access``), which answers
+  with the release's RPC URL and a short-lived bearer token for the Hunch workload; calls go to that
+  URL with that token, the grant is cached until it nears expiry and renewed once on a 401. This is
+  the same mechanism the Tau runtime uses for ``call_release``.
 """
 
 from __future__ import annotations
@@ -117,9 +124,99 @@ def _looks_like_missing_route(response: requests.Response) -> bool:
     return detail.get("message") in (None, "Not Found") and detail.get("code") is None
 
 
+class ReleaseHTTPClient(ConnectorHTTPClient):
+    """Calls a platform ResourceRelease through its runtime-access grant (RPC URL + token)."""
+
+    GRANT_REFRESH_MARGIN_SECONDS = 60.0
+    WAKE_WAIT_SECONDS = 120.0
+
+    def __init__(
+        self,
+        release_uid: str,
+        *,
+        timeout: float = DEFAULT_TIMEOUT,
+        session: requests.Session | None = None,
+        resolver: Callable[[], Any] | None = None,
+    ) -> None:
+        super().__init__(
+            "https://release.invalid", headers=self._grant_headers, timeout=timeout, session=session
+        )
+        self.release_uid = release_uid
+        self._resolver = resolver or self._resolve_with_sdk
+        self._grant: tuple[str, str, float | None] | None = None  # rpc_url, token, expires_at
+
+    # -- grant -------------------------------------------------------------------------------
+    def _resolve_with_sdk(self) -> Any:
+        from mainsequence.client.models_helpers import ResourceRelease
+
+        release = ResourceRelease.get(pk=self.release_uid)
+        return release.wait_for_runtime_access(wait_timeout_seconds=self.WAKE_WAIT_SECONDS)
+
+    def _grant_headers(self) -> Mapping[str, str]:
+        rpc_url, token, _ = self._current_grant()
+        return {"Authorization": f"Bearer {token}"}
+
+    def _current_grant(self, *, refresh: bool = False) -> tuple[str, str, float | None]:
+        import time
+
+        if self._grant is not None and not refresh:
+            _, _, expires_at = self._grant
+            if expires_at is None or expires_at - time.time() > self.GRANT_REFRESH_MARGIN_SECONDS:
+                return self._grant
+        try:
+            answer = self._resolver()
+        except Exception as exc:
+            raise ConnectorError(
+                f"The platform did not grant access to release {self.release_uid} "
+                f"({type(exc).__name__}).",
+                code="provider_unavailable",
+                retryable=True,
+            ) from exc
+        grant = getattr(answer, "access", None) or {}
+        if isinstance(grant, dict):
+            mode, token, rpc_url, expires = (
+                grant.get("mode"),
+                grant.get("token"),
+                grant.get("rpc_url"),
+                grant.get("expires_at"),
+            )
+        else:
+            mode, token, rpc_url, expires = (
+                getattr(grant, "mode", None),
+                getattr(grant, "token", None),
+                getattr(grant, "rpc_url", None),
+                getattr(grant, "expires_at", None),
+            )
+        if hasattr(token, "get_secret_value"):
+            token = token.get_secret_value()
+        if mode != "token" or not token or not rpc_url:
+            raise ConnectorError(
+                f"Release {self.release_uid} offers no token access to call it.",
+                code="dependency_unavailable",
+                retryable=False,
+            )
+        expires_at = None
+        if expires is not None:
+            expires_at = expires.timestamp() if hasattr(expires, "timestamp") else float(expires)
+        self._grant = (str(rpc_url).rstrip("/"), str(token), expires_at)
+        self.base_url = self._grant[0]
+        return self._grant
+
+    def request(self, method: str, path: str, *, params=None, json=None, timeout=None) -> Any:
+        self._current_grant()
+        try:
+            return super().request(method, path, params=params, json=json, timeout=timeout)
+        except ConnectorError as exc:
+            if exc.code != "http_401":
+                raise
+        # The token may have expired early or been revoked: obtain a new one, once.
+        self._current_grant(refresh=True)
+        return super().request(method, path, params=params, json=json, timeout=timeout)
+
+
 def connector_url(env_name: str) -> str | None:
     value = os.environ.get(env_name, "").strip()
     return value.rstrip("/") or None
 
 
-__all__ = ["ConnectorHTTPClient", "connector_url", "sdk_headers"]
+__all__ = ["ConnectorHTTPClient", "ReleaseHTTPClient", "connector_url", "sdk_headers"]

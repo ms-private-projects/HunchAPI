@@ -258,6 +258,7 @@ def test_registry_follows_the_connector_mode(monkeypatch) -> None:
         "mode": "simulated",
         "configured": True,
         "base_url": None,
+        "release_uid": None,
     }
     reset_connectors()
     monkeypatch.setenv("HUNCH_CONNECTOR_MODE", "live")
@@ -319,3 +320,86 @@ def test_linking_rules_check_ownership_and_exclusivity(monkeypatch) -> None:
             pytest.raises(LinkError),
         ):
             start_link(ME, "binance")
+
+
+def test_release_client_calls_the_rpc_url_with_the_granted_token_and_renews_once() -> None:
+    import datetime as dt
+    from types import SimpleNamespace
+
+    from hunch.connectors.http import ReleaseHTTPClient
+
+    grants = iter(
+        [
+            SimpleNamespace(
+                access={
+                    "mode": "token",
+                    "token": "t1",
+                    "rpc_url": "https://alpaca.rpc.test/",
+                    "expires_at": dt.datetime(2030, 1, 1, tzinfo=dt.timezone.utc),
+                }
+            ),
+            SimpleNamespace(
+                access={
+                    "mode": "token",
+                    "token": "t2",
+                    "rpc_url": "https://alpaca.rpc.test/",
+                    "expires_at": None,
+                }
+            ),
+        ]
+    )
+
+    class Response:
+        def __init__(self, status, body):
+            self.status_code, self._body, self.content = status, body, b"x"
+
+        def json(self):
+            return self._body
+
+    class Session:
+        def __init__(self):
+            self.calls = []
+
+        def request(self, method, url, **kwargs):
+            self.calls.append((method, url, kwargs["headers"].get("Authorization")))
+            if len(self.calls) == 2:
+                return Response(401, {"detail": "expired"})
+            return Response(200, {"ok": len(self.calls)})
+
+    session = Session()
+    client = ReleaseHTTPClient("rel-1", session=session, resolver=lambda: next(grants))
+    assert client.get("/v1/accounts") == {"ok": 1}
+    assert session.calls[0] == ("GET", "https://alpaca.rpc.test/v1/accounts", "Bearer t1")
+    assert client.get("/v1/accounts") == {"ok": 3}
+    assert session.calls[2][2] == "Bearer t2"  # renewed once after the 401
+
+
+def test_release_client_reports_missing_grants_as_unavailable() -> None:
+    from types import SimpleNamespace
+
+    from hunch.connectors.http import ReleaseHTTPClient
+
+    client = ReleaseHTTPClient("rel-2", resolver=lambda: SimpleNamespace(access=None))
+    with pytest.raises(ConnectorError) as info:
+        client.get("/v1/accounts")
+    assert info.value.code == "dependency_unavailable"
+
+    def broken():
+        raise RuntimeError("waking")
+
+    with pytest.raises(ConnectorError) as info:
+        ReleaseHTTPClient("rel-3", resolver=broken).get("/v1/accounts")
+    assert info.value.retryable is True
+
+
+def test_registry_prefers_the_release_uid_in_live_mode(monkeypatch) -> None:
+    from hunch.connectors.http import ReleaseHTTPClient
+
+    reset_connectors()
+    monkeypatch.setenv("HUNCH_CONNECTOR_MODE", "live")
+    monkeypatch.setenv("HUNCH_ALPACA_CONNECTOR_RELEASE_UID", "7576a872-5bb0-414f-8d5c-795634bca83a")
+    monkeypatch.delenv("HUNCH_ALPACA_CONNECTOR_URL", raising=False)
+    connector = connector_for("alpaca")
+    assert isinstance(connector.client, ReleaseHTTPClient)
+    assert connector_status("alpaca")["release_uid"] == "7576a872-5bb0-414f-8d5c-795634bca83a"
+    reset_connectors()
