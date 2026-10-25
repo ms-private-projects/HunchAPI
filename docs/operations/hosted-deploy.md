@@ -39,6 +39,7 @@ Platform repository names: `HunchAPI` (this repository), `Hunch` (the site), `al
 | `hunch` API | `HUNCH_CONNECTOR_MODE` | `live` | set |
 | `hunch` API, review and sync Jobs | `HUNCH_ALPACA_CONNECTOR_RELEASE_UID` | the `alpaca` FastAPI release UID in that Environment | after the Alpaca connector API is deployed there (not yet, 2026-10-25) |
 | same | `HUNCH_IBKR_CONNECTOR_RELEASE_UID` | the IBKR API release UID | after that repository publishes its API (today only Jobs) |
+| `hunch` API, build and review Jobs (dispatcher included) | `HUNCH_RESEARCH_MODE` | `heuristic`; `inference` once the provider's recorded-inference adapter is confirmed there | set |
 | `hunch` API, build and review Jobs | `HUNCH_RESEARCH_SOURCES` | `quant`, or `quant,finnhub` with the Secret below | optional |
 | `hunch-email-digest` Job | `HUNCH_EMAIL_SENDER` | `platform` | set |
 | `hunch-email-digest` Job | `HUNCH_SITE_URL` | the site's Command Center link in that Environment (`.../app/links/<site uid>`) | after the first site deploy |
@@ -66,14 +67,38 @@ curl -H "Authorization: Bearer $(.venv/bin/mainsequence auth token)" \
   2026-10-25, ADR 0002). Set `HUNCH_RESEARCH_MODE=heuristic` on the API and Jobs to deploy without
   it.
 
+## MetaTables roles in each Environment
+
+Workflow entries grant no MetaTables roles; an owner of each namespace grants them (MetaTables
+Admin, namespace **Access**, or `grant_role`). The Hunch tables register under the ms-markets
+namespace `mainsequence.markets` (the inherited mixins; only their physical names carry
+`hunch__`), and `hunch.alembic_version` under `hunch`, which the first `hunch-migrate` run creates
+with the Job as `editor`.
+
+| Principal (workload User) | `mainsequence.markets` | `hunch` |
+| --- | --- | --- |
+| `hunch-migrate` | `editor` | `editor` (automatic) |
+| `hunch` API and every other Hunch Job, dispatchers included | `data_writer` | `data_viewer` |
+| a person or a Team of people | `owner` | `owner` |
+
+Without `editor` the migration fails with 403 `namespace_access_required` naming its workload
+User, which blocks the API and the Agent and, through them, the site build. Workload User UIDs
+are on each Job (`GET /api/v1/jobs/?code_repository_branch_uid=<branch uid>`) and each release
+(`workload_user_uid`). A recreated Job or release gets a new workload User and needs its grant
+again. Granted in development on 2026-10-25.
+
 ## Order of operations
 
-1. Merge `phase-0-foundation` into `development` and push. The platform builds the image, runs
-   `hunch-migrate` (ms-markets schema must already be at its head in that Environment), deploys
-   the `hunch` API, then the Agent. Confirm with
-   `mainsequence code-repository resources list` and the release logs.
-2. Merge `command-center-site` into the site's `development` and push: the site builds with the
-   development API release resolved by name.
+1. Grant the MetaTables roles above in the Environment, then merge `phase-0-foundation` into
+   `development` and push. The platform builds the image, runs `hunch-migrate` (ms-markets
+   schema must already be at its head in that Environment), deploys the `hunch` API, then the
+   Agent. Confirm with `mainsequence code-repository resources list` and the release logs. The
+   first push creates the Jobs and their workload Users, so their grants can follow it; push
+   again after granting.
+2. Only once the `hunch` release has an active revision, merge `command-center-site` into the
+   site's `development` and push: the site resolves `HunchAPI/hunch` at build time and fails
+   with `invalid_configuration` while that release does not exist (2026-10-25: the site built 41 s
+   before the API workflow created it). The next push to the site's branch builds it again.
 3. Open the site in Command Center; create, build and activate a practice take; publish it; check
    the leaderboard, notifications and the Assistant (the configuration endpoint reports the Agent).
 4. Set `HUNCH_SITE_URL` from the site's link and push; opt a profile into the digest; run

@@ -7,8 +7,9 @@ resources:
   kind: fastapi
   # The API's own workload User. Every MetaTable is read through the MetaTables API on the
   # MetaTables repository's branch; `user` on the Agent lets the project configuration find and
-  # return it to the site (site_agent.py). Roles on the `mainsequence.markets` namespace
-  # (data_viewer / data_writer) are granted by the namespace owner, not declared here.
+  # return it to the site (site_agent.py). MetaTables roles (`editor` for hunch-migrate,
+  # `data_writer` / `data_viewer` for the API and the other Jobs) are granted by the namespace
+  # owners, not declared here: docs/operations/hosted-deploy.md, "MetaTables roles".
   access:
     branch: editor
     branches:
@@ -61,6 +62,11 @@ resources:
     # review Jobs and exporting the Secret's value as HUNCH_FINNHUB_API_KEY in the runtime.
     - name: HUNCH_RESEARCH_SOURCES
       value: quant
+    # `heuristic` on the API, the build and the review workloads until the Environment's model
+    # provider has a recorded-inference adapter (none on the development backend, ADR 0002);
+    # then `inference`.
+    - name: HUNCH_RESEARCH_MODE
+      value: heuristic
 # The branch's one Harness Agent: the Hunch Agent. It reaches every project tool through the
 # `hunch` API's MCP and acts for the person whose request it serves (only an Organization admin's
 # push enables this). It reads no tables itself and never calls a venue connector.
@@ -132,6 +138,9 @@ resources:
     memory_request: '1'
     max_runtime_seconds: 1800
     spot: false
+    env_vars:
+    - name: HUNCH_RESEARCH_MODE
+      value: heuristic
     task_schedule: null
     scheduled_command_args: []
     automatic_redeployment:
@@ -200,6 +209,9 @@ resources:
     memory_request: '1'
     max_runtime_seconds: 3600
     spot: false
+    env_vars:
+    - name: HUNCH_RESEARCH_MODE
+      value: heuristic
     task_schedule: null
     scheduled_command_args: []
     automatic_redeployment:
@@ -222,6 +234,9 @@ resources:
     memory_request: '0.5'
     max_runtime_seconds: 3600
     spot: false
+    env_vars:
+    - name: HUNCH_RESEARCH_MODE
+      value: heuristic
     task_schedule:
       schedule:
         type: crontab
