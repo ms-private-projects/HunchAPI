@@ -33,8 +33,13 @@ def test_catalog_lists_the_project_tools_with_their_schemas() -> None:
         "hunch_profile",
         "hunch_query_takes",
         "hunch_manage_take",
+        "hunch_build_take",
+        "hunch_query_portfolio",
+        "hunch_query_instruments",
+        "hunch_get_job_run_status",
     }
     by_name = {tool.name: tool for tool in tools}
+    assert by_name["hunch_build_take"].meta == {"mainsequence.ai/timeout-seconds/v1": 300}
     assert by_name["hunch_query_takes"].input_schema["oneOf"]
     assert by_name["hunch_query_takes"].annotations.read_only_hint
     assert not by_name["hunch_manage_take"].annotations.read_only_hint
@@ -68,6 +73,9 @@ def test_project_state_returns_capabilities_and_configuration() -> None:
     payload = _payload(result)
     assert payload["configuration"]["request_user_uid"] == "user-1"
     assert payload["configuration"]["venues"] == ["alpaca", "ibkr"]
+    research = payload["configuration"]["research"]
+    assert research["mode"] in {"inference", "heuristic"}
+    assert research["build_execution"] in {"inline", "job"}
     assert {item["key"] for item in payload["capabilities"]} >= {"takes", "portfolios"}
 
 

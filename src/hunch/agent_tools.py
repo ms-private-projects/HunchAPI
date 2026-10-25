@@ -15,11 +15,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from hunch.settings import EXECUTION_MODES, TAKE_STATUSES
+from hunch.settings import EXECUTION_MODES, RESEARCH_MODES, TAKE_STATUSES
 from hunch.takes.services import TakeCreate, TakeUpdate
 
 ToolHandler = Callable[[Mapping[str, Any]], Any]
 ExecutionMode = Literal["parallel", "sequential"]
+
+# A build researches with a recorded model call; give it well over the 60-second MCP default.
+BUILD_TOOL_TIMEOUT_SECONDS = 300
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +35,7 @@ class ProjectAgentTool:
     parameters: dict[str, Any]
     execution_mode: ExecutionMode
     handler: ToolHandler
+    timeout_seconds: int | None = None
 
 
 # Schema helpers ----------------------------------------------------------------------------------
@@ -248,6 +252,68 @@ def manage_take(arguments: Mapping[str, Any]) -> Any:
     return service.archive_take_resource(user, take_uid, _required_text(arguments, "confirmation"))
 
 
+def build_take(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services import portfolios as service
+
+    operation = _operation(arguments, {"build", "activate_practice", "refresh"})
+    user = acting_user()
+    take_uid = _required_text(arguments, "take_uid")
+    if operation == "build":
+        return service.build_take_resource(
+            user, take_uid, research_mode=_optional_text(arguments, "research_mode")
+        )
+    if operation == "activate_practice":
+        return service.activate_practice_resource(user, take_uid)
+    return service.refresh_take_resource(user, take_uid)
+
+
+def query_portfolio(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services import portfolios as service
+
+    operation = _operation(arguments, {"revisions", "performance", "weights"})
+    user = acting_user()
+    take_uid = _required_text(arguments, "take_uid")
+    if operation == "revisions":
+        return service.take_revision_resources(user, take_uid)
+    if operation == "performance":
+        return service.take_performance_frame(user, take_uid)
+    return service.take_weights_resource(user, take_uid)
+
+
+def query_instruments(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services.instruments import (
+        get_instrument_resource,
+        list_instrument_resources,
+    )
+
+    operation = _operation(arguments, {"list", "get"})
+    acting_user()
+    if operation == "get":
+        identifier = _required_text(arguments, "identifier")
+        return _require_found(
+            get_instrument_resource(identifier), label="Instrument", uid=identifier
+        )
+    limit, offset = _page(arguments)
+    return list_instrument_resources(
+        search=_optional_text(arguments, "search"),
+        sector=_optional_text(arguments, "sector"),
+        limit=limit,
+        offset=offset,
+    )
+
+
+def get_job_run_status(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.operations.builds import job_run_status
+
+    acting_user()
+    job_run_uid = _required_text(arguments, "job_run_uid")
+    return _require_found(job_run_status(job_run_uid), label="JobRun", uid=job_run_uid)
+
+
 # Catalog ----------------------------------------------------------------------------------------
 
 PAGE = _page_properties()
@@ -355,14 +421,105 @@ PROJECT_AGENT_TOOLS: tuple[ProjectAgentTool, ...] = (
         execution_mode="sequential",
         handler=manage_take,
     ),
+    ProjectAgentTool(
+        name="hunch_build_take",
+        label="Build A Take",
+        description=(
+            "Build (or rebuild) the basket of an owned take: research the thesis, apply its "
+            "constraints, publish the weights and compute the portfolio; then activate it as a "
+            "practice take or refresh its values. Hosted builds return a JobRun UID to follow."
+        ),
+        parameters=_operations(
+            _operation_case(
+                "build",
+                properties={
+                    "take_uid": _uid("take"),
+                    "research_mode": _enum(
+                        RESEARCH_MODES, "Override the configured research mode."
+                    ),
+                },
+                required=("take_uid",),
+            ),
+            _operation_case(
+                "activate_practice", properties={"take_uid": _uid("take")}, required=("take_uid",)
+            ),
+            _operation_case(
+                "refresh", properties={"take_uid": _uid("take")}, required=("take_uid",)
+            ),
+        ),
+        execution_mode="sequential",
+        handler=build_take,
+        timeout_seconds=BUILD_TOOL_TIMEOUT_SECONDS,
+    ),
+    ProjectAgentTool(
+        name="hunch_query_portfolio",
+        label="Query A Take's Portfolio",
+        description=(
+            "Read what Hunch built for a take: its basket revisions with rationale and guardrail "
+            "notes, its latest weights, or its performance since activation."
+        ),
+        parameters=_operations(
+            _operation_case(
+                "revisions", properties={"take_uid": _uid("take")}, required=("take_uid",)
+            ),
+            _operation_case(
+                "weights", properties={"take_uid": _uid("take")}, required=("take_uid",)
+            ),
+            _operation_case(
+                "performance", properties={"take_uid": _uid("take")}, required=("take_uid",)
+            ),
+        ),
+        execution_mode="parallel",
+        handler=query_portfolio,
+    ),
+    ProjectAgentTool(
+        name="hunch_query_instruments",
+        label="Query Instruments",
+        description="List or search the instruments Hunch can hold, or read one by ticker or FIGI.",
+        parameters=_operations(
+            _operation_case(
+                "list",
+                properties={
+                    **PAGE,
+                    "search": _string("Ticker, name or theme text."),
+                    "sector": _string("Exact sector label."),
+                },
+            ),
+            _operation_case(
+                "get",
+                properties={"identifier": _string("Ticker or FIGI.")},
+                required=("identifier",),
+            ),
+        ),
+        execution_mode="parallel",
+        handler=query_instruments,
+    ),
+    ProjectAgentTool(
+        name="hunch_get_job_run_status",
+        label="Get Hunch JobRun Status",
+        description="Read one Hunch build or refresh JobRun status and its sanitized failure summary.",
+        parameters={
+            "type": "object",
+            "properties": {"job_run_uid": _uid("JobRun")},
+            "required": ["job_run_uid"],
+            "additionalProperties": False,
+        },
+        execution_mode="parallel",
+        handler=get_job_run_status,
+    ),
 )
 
 
 __all__ = [
+    "BUILD_TOOL_TIMEOUT_SECONDS",
     "PROJECT_AGENT_TOOLS",
     "ProjectAgentTool",
+    "build_take",
+    "get_job_run_status",
     "manage_take",
     "profile",
     "project_state",
+    "query_instruments",
+    "query_portfolio",
     "query_takes",
 ]

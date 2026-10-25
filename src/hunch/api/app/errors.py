@@ -19,6 +19,16 @@ def bad_request(message: str) -> HTTPException:
 
 def api_http_error(exc: Exception) -> HTTPException:
     """Translate a service exception into the shared `{code, message, retryable}` error body."""
+    from hunch.research.guardrails import GuardrailError
+    from hunch.research.models import ResearchError
+
+    if isinstance(exc, GuardrailError):
+        return api_error(status_code=409, code="basket_not_investable", message=str(exc))
+    if isinstance(exc, ResearchError):
+        logger.warning("Research unavailable: %s", exc)
+        return api_error(
+            status_code=502, code="research_unavailable", message=str(exc), retryable=True
+        )
     if isinstance(exc, ValueError):
         return api_error(status_code=409, code="action_conflict", message=str(exc))
     if not isinstance(exc, (HTTPException, LookupError, TypeError)):

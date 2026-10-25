@@ -52,12 +52,11 @@ def test_provider_identity_and_version_location() -> None:
 
 def test_provider_loads_by_reference_with_a_single_head() -> None:
     loaded = load_provider("hunch.migrations:migration")
-    assert code_head_revision(script_directory(loaded)) == "0001"
+    assert code_head_revision(script_directory(loaded)) == "0002"
 
 
-def test_first_revision_creates_every_project_table_with_its_model_columns() -> None:
-    module = _revision_module("0001")
-    sql = _offline_sql(module.upgrade)
+def test_revisions_create_every_project_table_with_its_model_columns() -> None:
+    sql = "\n".join(_offline_sql(_revision_module(name).upgrade) for name in ("0001", "0002"))
     created = set(re.findall(r"CREATE TABLE (\w+) \(", sql))
     assert created == PROJECT_TABLE_NAMES
     for model in all_project_metatable_models():
@@ -72,7 +71,6 @@ def test_first_revision_creates_every_project_table_with_its_model_columns() -> 
             assert index.name in sql, (table.name, index.name)
 
 
-def test_first_revision_downgrade_drops_every_project_table() -> None:
-    module = _revision_module("0001")
-    sql = _offline_sql(module.downgrade)
+def test_downgrades_drop_every_project_table() -> None:
+    sql = "\n".join(_offline_sql(_revision_module(name).downgrade) for name in ("0002", "0001"))
     assert set(re.findall(r"DROP TABLE (\w+);", sql)) == PROJECT_TABLE_NAMES

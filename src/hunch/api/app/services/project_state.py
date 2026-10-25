@@ -13,9 +13,17 @@ from hunch.api.app.schemas import (
     AssistantConfiguration,
     AssistantRuntime,
     ProjectConfigurationResponse,
+    ResearchConfiguration,
 )
 from hunch.api.app.site_agent import SiteAgent, resolve_site_agent
-from hunch.settings import VENUES
+from hunch.settings import (
+    VENUES,
+    bars_provider,
+    build_execution,
+    inference_model,
+    inference_provider,
+    research_mode,
+)
 
 LOCAL_TAU_ORIGIN_ENV = "HUNCH_LOCAL_TAU_ORIGIN"
 LOCAL_TAU_BASE_PATH = "/tau"
@@ -82,6 +90,17 @@ def assistant_configuration(agent: SiteAgent | None) -> AssistantConfiguration:
     return AssistantConfiguration(enabled=False, display_name=AGENT_DISPLAY_NAME)
 
 
+def research_configuration() -> ResearchConfiguration:
+    mode = research_mode()
+    return ResearchConfiguration(
+        mode=mode,
+        build_execution=build_execution(),
+        bars_provider=bars_provider(),
+        inference_provider=inference_provider() if mode == "inference" else None,
+        inference_model=inference_model() if mode == "inference" else None,
+    )
+
+
 def get_project_configuration(
     *, request_user_uid: str | None = None
 ) -> ProjectConfigurationResponse:
@@ -93,6 +112,7 @@ def get_project_configuration(
     return ProjectConfigurationResponse(
         api_version=__version__,
         venues=list(VENUES),
+        research=research_configuration(),
         assistant=assistant_configuration(agent),
         organization_environment_uid=agent.organization_environment_uid if agent else None,
         agent_uid=agent.agent_uid if agent else None,
@@ -100,4 +120,9 @@ def get_project_configuration(
     )
 
 
-__all__ = ["assistant_configuration", "get_project_configuration", "local_tau_ready"]
+__all__ = [
+    "assistant_configuration",
+    "get_project_configuration",
+    "local_tau_ready",
+    "research_configuration",
+]

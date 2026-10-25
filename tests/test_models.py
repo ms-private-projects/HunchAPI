@@ -28,7 +28,9 @@ def test_project_tables_live_in_the_hunch_app_segment() -> None:
     assert PROJECT_TABLE_NAMES == {
         "hunch__user_profile",
         "hunch__user_profile_account",
+        "hunch__instrument",
         "hunch__take",
+        "hunch__take_revision",
         "hunch__portfolio",
     }
     for model in all_project_metatable_models():

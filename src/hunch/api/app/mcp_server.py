@@ -114,7 +114,15 @@ def _text_result(payload: Any, *, is_error: bool) -> types.CallToolResult:
     )
 
 
+TOOL_TIMEOUT_META_KEY = "mainsequence.ai/timeout-seconds/v1"
+
+
 def mcp_tool(definition: ProjectAgentTool) -> types.Tool:
+    meta = (
+        {TOOL_TIMEOUT_META_KEY: definition.timeout_seconds}
+        if definition.timeout_seconds is not None
+        else None
+    )
     return types.Tool(
         name=definition.name,
         title=definition.label,
@@ -124,6 +132,7 @@ def mcp_tool(definition: ProjectAgentTool) -> types.Tool:
             title=definition.label,
             read_only_hint=definition.execution_mode == "parallel",
         ),
+        _meta=meta,
     )
 
 

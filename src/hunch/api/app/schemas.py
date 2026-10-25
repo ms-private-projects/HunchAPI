@@ -56,9 +56,20 @@ class AssistantConfiguration(BaseModel):
     display_name: str = "Hunch Agent"
 
 
+class ResearchConfiguration(BaseModel):
+    mode: str = Field(description="`inference` records a model call; `heuristic` matches themes.")
+    build_execution: str = Field(
+        description="`inline` in the API process or `job` on the platform."
+    )
+    bars_provider: str
+    inference_provider: str | None = None
+    inference_model: str | None = None
+
+
 class ProjectConfigurationResponse(BaseModel):
     api_version: str
     venues: list[str]
+    research: ResearchConfiguration
     assistant: AssistantConfiguration = Field(
         default_factory=lambda: AssistantConfiguration(enabled=False)
     )
@@ -154,9 +165,86 @@ class ArchiveRequest(BaseModel):
     confirmation: str = Field(min_length=1, description="Exactly: DELETE <take uid>")
 
 
+# Building, revisions, weights, performance ------------------------------------------------------
+
+
+class BuildRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    research_mode: Literal["inference", "heuristic"] | None = Field(
+        default=None, description="Override the configured research mode for this build."
+    )
+
+
+class RevisionResource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    uid: str
+    take_uid: str
+    revision: int
+    kind: str
+    rationale_md: str
+    weights: list[dict[str, Any]]
+    cash_weight: float | None = None
+    guardrail_notes: list[str] = Field(default_factory=list)
+    candidates: list[dict[str, Any]] = Field(default_factory=list)
+    created_by: str
+    inference_request_uids: list[str] = Field(default_factory=list)
+    signal_time_index: dt.datetime | None = None
+    created_at: dt.datetime | None = None
+
+
+class BuildResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    execution: Literal["inline", "job"]
+    take: TakeResource
+    revision: RevisionResource | None = None
+    job_run_uid: str | None = Field(
+        default=None, description="The JobRun to poll when the build runs as a platform Job."
+    )
+
+
+class WeightsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    take_uid: str
+    as_of: dt.datetime | str | None = None
+    items: list[dict[str, Any]]
+    invested: float
+    cash: float
+
+
+class InstrumentResource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    figi: str
+    ticker: str
+    name: str
+    exchange_code: str | None = None
+    security_type: str | None = None
+    sector: str | None = None
+    themes: list[str] = Field(default_factory=list)
+    flags: list[str] = Field(default_factory=list)
+    is_tradable: bool = True
+
+
+class JobRunResource(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    uid: str
+    status: str | None = None
+
+
 __all__ = [
     "DISCLAIMERS",
     "ArchiveRequest",
+    "BuildRequest",
+    "BuildResponse",
+    "InstrumentResource",
+    "JobRunResource",
+    "RevisionResource",
+    "WeightsResponse",
     "AssistantConfiguration",
     "AssistantRuntime",
     "CapabilityCatalogResponse",

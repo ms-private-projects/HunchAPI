@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import logging
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -79,6 +80,8 @@ def _signed_in_authorization() -> bytes:
 
 
 def create_app() -> FastAPI:
+    # The developer reads this process's output: show warnings and errors of every logger.
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     if any(os.environ.get(name) for name in ("APP_NAME", "FASTAPI_PUBLIC_BASE_URL")):
         raise RuntimeError(
             "The loopback Hunch launcher runs only outside a Main Sequence deployment."

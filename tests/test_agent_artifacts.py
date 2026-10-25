@@ -21,9 +21,13 @@ def _workflow() -> dict:
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
-def _resource(kind: str) -> dict:
-    matches = [item for item in _workflow()["resources"] if item["kind"] == kind]
-    assert len(matches) == 1, kind
+def _resource(kind: str, key: str | None = None) -> dict:
+    matches = [
+        item
+        for item in _workflow()["resources"]
+        if item["kind"] == kind and (key is None or item["key"] == key)
+    ]
+    assert len(matches) == 1, (kind, key)
     return matches[0]
 
 
@@ -81,8 +85,22 @@ def test_workflow_declares_the_api_the_one_agent_and_the_migration() -> None:
     assert {"key": agent["key"], "policy": "user"} in api["access"]["resources"]
     assert {"key": api["key"], "policy": "user"} in agent["access"]["resources"]
 
-    migrate = _resource("job")
-    assert (ROOT / migrate["spec"]["execution_path"]).is_file()
+    jobs = [item for item in workflow["resources"] if item["kind"] == "job"]
+    assert {job["key"] for job in jobs} == {
+        "hunch-migrate",
+        "hunch-take-build",
+        "hunch-portfolio-refresh",
+        "hunch-portfolio-refresh-dispatcher",
+    }
+    for job in jobs:
+        assert (ROOT / job["spec"]["execution_path"]).is_file(), job["key"]
+    migrate = _resource("job", "hunch-migrate")
+    assert {"key": "hunch-take-build", "policy": "runner"} in api["access"]["resources"]
+    dispatcher = _resource("job", "hunch-portfolio-refresh-dispatcher")
+    assert dispatcher["spec"]["scheduled_command_args"] == ["--scheduled"]
+    assert {"key": "hunch-portfolio-refresh", "policy": "runner"} in dispatcher["access"][
+        "resources"
+    ]
     steps = workflow["execution"]["steps"]
     assert steps["migrate"]["run_job"] == migrate["key"]
     assert steps["deploy_api"]["needs"] == ["migrate"]

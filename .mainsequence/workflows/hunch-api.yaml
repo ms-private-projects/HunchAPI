@@ -17,6 +17,12 @@ resources:
     resources:
     - key: hunch-agent
       policy: user
+    - key: hunch-take-build
+      policy: runner
+    - key: hunch-portfolio-refresh
+      policy: runner
+    - key: hunch-portfolio-refresh-dispatcher
+      policy: viewer
   spec:
     source_path: api/app/main.py
     automatic_deployment: true
@@ -30,6 +36,9 @@ resources:
     env_vars:
     - name: HUNCH_CORS_ORIGINS
       value: https://*.site-dev.main-sequence.app
+    # Hosted, the API starts builds and refreshes as the Jobs below, never in its own process.
+    - name: HUNCH_BUILD_EXECUTION
+      value: job
 # The branch's one Harness Agent: the Hunch Agent. It reaches every project tool through the
 # `hunch` API's MCP and acts for the person whose request it serves (only an Organization admin's
 # push enables this). It reads no tables itself and never calls a venue connector.
@@ -75,6 +84,77 @@ resources:
     memory_request: '0.5'
     max_runtime_seconds: 1800
     spot: false
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+# Builds and refreshes run as one shared Job per kind, selected by `--take-uid` (the API, the
+# Agent through the API, and the dispatcher start them). A Job cannot hold `runner` on itself, so
+# the dispatcher below starts the scheduled refreshes after the market close.
+- key: hunch-take-build
+  kind: job
+  access:
+    branches:
+    - repository: MetaTables
+      policy: reader
+    model_providers:
+    # Research runs through recorded inference with this credential; adjust before the first push.
+    - provider: openai-codex
+      policy: user
+  spec:
+    name: Hunch Take Build
+    description: Research one take, apply its constraints, publish its basket and build its portfolio (--take-uid).
+    execution_path: src/jobs/run_hunch_take_build.py
+    cpu_request: '0.5'
+    memory_request: '1'
+    max_runtime_seconds: 1800
+    spot: false
+    task_schedule: null
+    scheduled_command_args: []
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+- key: hunch-portfolio-refresh
+  kind: job
+  access:
+    branches:
+    - repository: MetaTables
+      policy: reader
+  spec:
+    name: Hunch Portfolio Refresh
+    description: Bring prices up to date and extend the values of one take (--take-uid) or of every built take (--scheduled).
+    execution_path: src/jobs/run_hunch_portfolio_refresh.py
+    cpu_request: '0.5'
+    memory_request: '1'
+    max_runtime_seconds: 3600
+    spot: false
+    task_schedule: null
+    scheduled_command_args: []
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+- key: hunch-portfolio-refresh-dispatcher
+  kind: job
+  access:
+    branches:
+    - repository: MetaTables
+      policy: reader
+    resources:
+    - key: hunch-portfolio-refresh
+      policy: runner
+  spec:
+    name: Hunch Portfolio Refresh Dispatcher
+    description: Start the scheduled refresh of every built take after the US market close.
+    execution_path: src/jobs/run_hunch_portfolio_refresh.py
+    cpu_request: '0.25'
+    memory_request: '0.5'
+    max_runtime_seconds: 3600
+    spot: false
+    task_schedule:
+      schedule:
+        type: crontab
+        expression: '30 1 * * 2-6'
+        timezone: UTC
+    scheduled_command_args: ['--scheduled']
     automatic_redeployment:
       enabled: true
       tag_regex: null

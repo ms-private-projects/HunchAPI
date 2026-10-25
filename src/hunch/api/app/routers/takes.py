@@ -10,12 +10,24 @@ from ..errors import api_http_error
 from ..identity import acting_user
 from ..schemas import (
     ArchiveRequest,
+    BuildRequest,
+    BuildResponse,
     ExecutionModeRequest,
     ResourceCollection,
     ResourceDiscoveryResponse,
+    RevisionResource,
     TakeCreateRequest,
     TakeResource,
     TakeUpdateRequest,
+    WeightsResponse,
+)
+from ..services.portfolios import (
+    activate_practice_resource,
+    build_take_resource,
+    refresh_take_resource,
+    take_performance_frame,
+    take_revision_resources,
+    take_weights_resource,
 )
 from ..services.takes import (
     archive_take_resource,
@@ -156,5 +168,77 @@ def fork(take_uid: str) -> TakeResource:
 def archive(take_uid: str, payload: ArchiveRequest) -> TakeResource:
     try:
         return archive_take_resource(acting_user(), take_uid, payload.confirmation)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.post(
+    "/{take_uid}/actions/build",
+    response_model=BuildResponse,
+    summary="Build a take",
+    description=(
+        "Research the thesis, apply the take's constraints, publish the basket and (re)build the "
+        "portfolio. Inline locally; a platform Job when hosted."
+    ),
+)
+def build(take_uid: str, payload: BuildRequest | None = None) -> BuildResponse:
+    try:
+        return build_take_resource(
+            acting_user(), take_uid, research_mode=payload.research_mode if payload else None
+        )
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.post(
+    "/{take_uid}/actions/activate-practice",
+    response_model=TakeResource,
+    summary="Activate as a practice take",
+    description="Start the performance record without investing money.",
+)
+def activate(take_uid: str) -> TakeResource:
+    try:
+        return activate_practice_resource(acting_user(), take_uid)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.post(
+    "/{take_uid}/actions/refresh",
+    response_model=BuildResponse,
+    summary="Refresh the portfolio",
+    description="Bring prices up to date and extend the take's values.",
+)
+def refresh(take_uid: str) -> BuildResponse:
+    try:
+        return refresh_take_resource(acting_user(), take_uid)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.get("/{take_uid}/revisions", response_model=list[RevisionResource], summary="Revisions")
+def revisions(take_uid: str) -> list[RevisionResource]:
+    try:
+        return take_revision_resources(acting_user(), take_uid)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.get(
+    "/{take_uid}/performance",
+    summary="Performance since activation",
+    description="Tabular frame of the take's values, rebased to 1 at activation.",
+)
+def performance(take_uid: str):
+    try:
+        return take_performance_frame(acting_user(), take_uid)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.get("/{take_uid}/weights", response_model=WeightsResponse, summary="Latest weights")
+def weights(take_uid: str) -> WeightsResponse:
+    try:
+        return take_weights_resource(acting_user(), take_uid)
     except Exception as exc:
         raise api_http_error(exc) from exc

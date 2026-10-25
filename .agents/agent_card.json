@@ -48,6 +48,22 @@
         "Fork the top take on the leaderboard for me."
       ],
       "path": ".agents/skills/mcp_tools/hunch-take-authoring/SKILL.md"
+    },
+    {
+      "id": "building-and-performance",
+      "name": "Building A Take And Reading Its Portfolio",
+      "description": "Build a take's basket from its thesis, activate it as a practice take, and read its revisions, weights and performance.",
+      "tags": [
+        "hunch",
+        "portfolios",
+        "research",
+        "performance"
+      ],
+      "examples": [
+        "Build my robots take.",
+        "Show me the weights and how my take has done since activation."
+      ],
+      "path": ".agents/skills/mcp_tools/hunch-building-and-performance/SKILL.md"
     }
   ]
 }

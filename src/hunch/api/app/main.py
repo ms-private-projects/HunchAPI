@@ -24,11 +24,12 @@ from mainsequence.server.fastapi import install_mcp, install_request_identity
 
 from .identity import bound_acting_user_uid
 from .mcp_server import build_mcp_application
+from .routers.instruments import router as instruments_router
 from .routers.profile import router as profile_router
 from .routers.project_state import router as project_state_router
 from .routers.takes import router as takes_router
 
-ROUTERS = (project_state_router, profile_router, takes_router)
+ROUTERS = (project_state_router, profile_router, takes_router, instruments_router)
 CORS_ORIGINS_ENV = "HUNCH_CORS_ORIGINS"
 
 

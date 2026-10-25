@@ -7,7 +7,10 @@
 # - MetaTables: uses the laptop's running local API, otherwise starts it with `metatables serve
 #   --local`. Every checkout shares that one API.
 # - API: `api.app.local:app` on 127.0.0.1:8601, connected to the local MetaTables runtime. It
-#   presents this process's SDK sign-in on every loopback request (api/app/local.py).
+#   presents this process's SDK sign-in on every loopback request (api/app/local.py). Builds run
+#   inline with heuristic research (HUNCH_RESEARCH_MODE); recorded inference needs a model provider
+#   with a recorded-inference adapter and credit in the Environment named by
+#   HUNCH_INFERENCE_ENVIRONMENT_UID, so set HUNCH_RESEARCH_MODE=inference in .env to use it.
 # - Tau: `api.agent.main:app` on 127.0.0.1:8602 in local mode with the provider below; the
 #   `.tau/extensions/hunch.py` bridge forwards the `hunch__*` tools to the local API's /mcp.
 # - Site: the sibling Vite application on 127.0.0.1:5601 proxying /api to the API and /tau to Tau.
@@ -25,6 +28,7 @@ SITE_PORT="${HUNCH_LOCAL_SITE_PORT:-5601}"
 TAU_PROVIDER="${HUNCH_LOCAL_TAU_PROVIDER:-openai-codex}"
 TAU_MODEL="${HUNCH_LOCAL_TAU_MODEL:-gpt-5.6-luna}"
 TAU_THINKING="${HUNCH_LOCAL_TAU_THINKING:-medium}"
+RESEARCH_MODE="${HUNCH_RESEARCH_MODE:-heuristic}"
 PY="$ROOT/.venv/bin/python"
 METATABLES="$ROOT/.venv/bin/metatables"
 
@@ -151,9 +155,11 @@ PY
 
 start_api() {
   require_free_port "$API_PORT" "API"
-  log "API: http://127.0.0.1:$API_PORT"
+  log "API: http://127.0.0.1:$API_PORT (research: $RESEARCH_MODE, builds inline)"
   PYTHONPATH="$ROOT" \
     HUNCH_LOCAL_TAU_ORIGIN="http://127.0.0.1:$TAU_PORT" \
+    HUNCH_RESEARCH_MODE="$RESEARCH_MODE" \
+    HUNCH_BUILD_EXECUTION="${HUNCH_BUILD_EXECUTION:-inline}" \
     "$PY" -c '
 import sys
 
