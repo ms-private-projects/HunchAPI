@@ -52,6 +52,32 @@ curl -H "Authorization: Bearer $(.venv/bin/mainsequence auth token)" \
   "$MAINSEQUENCE_ENDPOINT/api/v1/resource-releases/?name=alpaca&release_kind=fastapi&organization_environment_uid=<env uid>"
 ```
 
+## Namespace roles (done by hand, per Environment)
+
+Hunch tables live in the MetaTables namespace `mainsequence.markets`. Workflow files cannot grant
+namespace roles, so after the first push of a branch (which creates the workload Users) an owner of
+the namespace, or an Organization admin, grants from their own session with the MetaTables client
+(`Namespace.filter(search=...)[0].grant_role(workload_user_uid, role)`), the checkout on that
+Environment's branch so the client resolves that Environment's MetaTables API:
+
+| Workload | Role | Why |
+| --- | --- | --- |
+| `Hunch Migrations` Job | `editor` | creates the tables (`tables.create`) |
+| `hunch` API and every other Hunch Job | `data_writer` | reads and writes rows |
+| the person running the deploy (or a Team) | `owner` | the namespace keeps an owner when Jobs are recreated |
+
+Workload User UIDs come from `GET /api/v1/jobs/?code_repository_branch_uid=<branch>`
+(`workload_user_uid`) and from the releases (`workload_user_uid`). A recreated Job or release gets a
+new User and needs the grant again; a Team holding the roles avoids that.
+
+First-deploy findings (development, 2026-10-25): the migration Job first timed out because the
+development MetaTables runtime was asleep (its `/runtime-context/` call exceeded the SDK's 120 s read
+timeout); warming the runtime (`ResourceRelease.wait_for_runtime_access`) and re-running the Job
+fixed that. The second run failed with `namespace_access_required` until the grants above existed.
+A failed migrate step blocks the API and Agent deploys (`workflow_prerequisite_failed`); after the
+fix, an empty commit on the branch re-runs the whole pipeline. The site build fails with
+`invalid_configuration` until the API release exists in the Environment and is rebuilt afterwards.
+
 ## Access to declare when the pieces exist
 
 - Connector calls: `access.branches: [{repository: alpaca-connectors, policy: reader}]` on the
