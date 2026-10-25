@@ -1,0 +1,100 @@
+api_version: "3.0.0"
+name: hunch-api
+resources:
+# The key is also the Agent's MCP tool prefix (`hunch__list_tools`, `hunch__call_tool`), so it must
+# match ^[a-z][a-z0-9_]{0,39}$. The Hunch site names this release by this key.
+- key: hunch
+  kind: fastapi
+  # The API's own workload User. Every MetaTable is read through the MetaTables API on the
+  # MetaTables repository's branch; `user` on the Agent lets the project configuration find and
+  # return it to the site (site_agent.py). Roles on the `mainsequence.markets` namespace
+  # (data_viewer / data_writer) are granted by the namespace owner, not declared here.
+  access:
+    branch: editor
+    branches:
+    - repository: MetaTables
+      policy: reader
+    resources:
+    - key: hunch-agent
+      policy: user
+  spec:
+    source_path: api/app/main.py
+    automatic_deployment: true
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+    revision_retention_count: 3
+    mcp_enabled: true
+    cors_allowed_origins:
+    - https://*.site-dev.main-sequence.app
+    env_vars:
+    - name: HUNCH_CORS_ORIGINS
+      value: https://*.site-dev.main-sequence.app
+# The branch's one Harness Agent: the Hunch Agent. It reaches every project tool through the
+# `hunch` API's MCP and acts for the person whose request it serves (only an Organization admin's
+# push enables this). It reads no tables itself and never calls a venue connector.
+- key: hunch-agent
+  kind: harness_agent
+  acts_for_requester: true
+  access:
+    resources:
+    - key: hunch
+      policy: user
+  spec:
+    source_path: api/agent/main.py
+    # Provider, model and thinking level are the deployment's choice; adjust before the first push.
+    llm_provider: openai-codex
+    llm_model: gpt-5.6-luna
+    llm_thinking: medium
+    mcp_applications:
+    - resource: hunch
+    # Only Hunch application tools; TAU retains skill-scoped reading and A2A Task controls.
+    env_vars:
+    - name: TAU_EXCLUDE_BASE_TOOLS
+      value: 'true'
+    - name: TAU_EXCLUDE_MAINSEQUENCE_MCP
+      value: 'true'
+    cpu_request: 250m
+    memory_request: 512Mi
+    automatic_deployment: true
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+    revision_retention_count: 3
+- key: hunch-migrate
+  kind: job
+  access:
+    branches:
+    - repository: MetaTables
+      policy: reader
+  spec:
+    name: Hunch Migrations
+    description: Apply the hunch MetaTable schema revisions before the API rolls out.
+    execution_path: src/jobs/migrate_hunch.py
+    cpu_request: '0.25'
+    memory_request: '0.5'
+    max_runtime_seconds: 1800
+    spot: false
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+# The migration Job runs from the API's candidate image. The API deploys only after it succeeds,
+# and the Agent deploys from its own image only after the API whose MCP it uses.
+execution:
+  steps:
+    image:
+      prepare_image: hunch
+    migrate:
+      run_job: hunch-migrate
+      image_from: image
+      needs: [image]
+    deploy_api:
+      deploy: hunch
+      image_from: image
+      needs: [migrate]
+    agent_image:
+      prepare_image: hunch-agent
+    deploy_agent:
+      deploy: hunch-agent
+      image_from: agent_image
+      needs: [deploy_api, agent_image]

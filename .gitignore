@@ -1,6 +1,14 @@
+.ipynb_checkpoints
 .env
 .venv
 __pycache__/
 *.pyc
 .DS_Store
 *.egg-info/
+.pytest_cache/
+.ruff_cache/
+site/
+.scratchpad/
+
+# Private MetaTables launcher connection
+/.local/

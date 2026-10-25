@@ -1,72 +1,62 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hunchapi"
 version = "0.1.0"
+description = "Hunch: theses turned into managed portfolios on Main Sequence, ms-markets and the Alpaca and IBKR connectors."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
-  "fastapi>=0.110,<1",
-  "mainsequence==8.1.10",
-  "mainsequence[server]",
-  "uvicorn==0.52.4",
+  # Keep compatible ranges here and let uv.lock capture the reproducible environment.
+  "fastapi>=0.135.3",
+  "uvicorn>=0.52.4,<0.53",
+  # Main Sequence SDK 9 with the MCP extra: request identity, `install_mcp`, skills publishing.
+  "mainsequence[mcp]>=9.0.30,<10",
+  # The MetaTables client (`metatables`): migrations provider and governed table access.
+  "mainsequence-metatable>=0.1.51,<0.2",
+  # Every market primitive comes from ms-markets; the portfolios extra brings the calendars.
+  "ms-markets[portfolios]>=2.2.11,<3",
+  # Runtime of the Hunch Agent (`api/agent/main.py`); the platform runs it from this image.
+  "ms-tau-sdk>=2.0.23,<3",
+  "jsonschema>=4.23",
+  "pydantic>=2.9",
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["src*", "api*",]
+# Ship exactly one top-level import package. `src/jobs/` launchers and the `api/` deployment
+# entry points are executed from the checkout by path and are not part of the wheel.
+where = ["src"]
+include = ["hunch*"]
+
+[tool.setuptools.package-data]
+"hunch.migrations" = ["script.py.mako"]
+
+[dependency-groups]
+dev = [
+  "pytest>=9.1.1",
+  "ruff>=0.16.5",
+  "pyyaml>=6.0",
+  "httpx>=0.28.1",
+  "pyjwt>=2.10",
+  "cryptography>=44",
+]
 
 [tool.ruff]
-line-length = 100                 # Max line length for Ruff/Black.
-target-version = "py313"          # Optimize checks/fixes for Python 3.13.
-extend-exclude = [                # Extra paths to ignore.
-  "build", "dist", ".venv", ".tox", ".mypy_cache", ".ruff_cache"
-]
-fix = true                        # Apply fixes on `ruff check` without --fix.
+line-length = 100
+target-version = "py313"
+extend-exclude = ["build", "dist", ".venv", ".tox", ".mypy_cache", ".ruff_cache"]
+src = ["src", "api", "tests"]
+fix = true
 
 [tool.ruff.lint]
-# `select` enables entire *rule families* by prefix. Ruff then runs every rule whose ID
-# starts with that prefix. Concretely:
-#
-# - "E"  (pycodestyle errors / PEP 8):
-#     common examples: E111/E114 (indentation), E225 (missing whitespace around operator),
-#     E231 (missing whitespace after ','), E262/E265 (inline comment spacing),
-#     E302/E305 (expected blank lines around defs/classes),
-#     E402 (module import not at top of file),
-#     E711/E712 (comparisons to None/True/False), E722 (bare `except:`).
-#
-# - "F"  (Pyflakes correctness):
-#     common examples: F401 (unused import), F841 (local variable assigned but never used),
-#     F821 (undefined name), F632 (use ==/!= to compare to literal/constant),
-#     F403/F405 (from x import * / may be undefined).
-#
-# - "I"  (import order via isort):
-#     sorts & groups imports as: __future__ → stdlib → third-party → first-party → local,
-#     inserts the required blank lines between groups, alphabetizes within groups,
-#     and can combine/split import lines as needed.
-#
-# - "B"  (flake8-bugbear: bug-prone patterns):
-#     common examples: B006 (mutable default argument), B007 (loop control variable not used),
-#     B008 (function call as default argument), B011 (`assert False`), B015 (useless expression),
-#     B023 (function argument/attribute shadows variable), etc.
-#
-# - "UP" (pyupgrade: modernize to your `target-version`):
-#     examples for py313: convert `.format()` to f-strings when safe, replace `super(Class, self)`
-#     with `super()`, prefer built-in generics (`list[int]` not `typing.List[int]`),
-#     move ABCs to `collections.abc`, drop `u`-prefix on strings, remove obsolete compatibility code.
-#
-# If you already enable other rules elsewhere, use `extend-select = [...]` instead of replacing them.
 select = ["I"]
-
-# Let Black handle these (they conflict or are redundant):
-# - E203: whitespace before ':' in slices (Black intentionally violates this).
-# - E501: line-length (Black/formatter handles wrapping).
 ignore = ["E203", "E501"]
 
 [tool.ruff.lint.isort]
-# Treat these as your own packages so they sort as "first-party".
-known-first-party = ["api", "mainsequence", "src"]
-# (If you use a src/ layout, also set: src-paths = ["src"])
-src-paths = ["src", "api"]
+known-first-party = ["mainsequence", "metatables", "msm", "msm_portfolios", "hunch"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]

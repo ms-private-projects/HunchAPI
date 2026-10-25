@@ -1,0 +1,140 @@
+"""Exercise the installed TAU host with the Agent's declared tool restrictions.
+
+Backend/model I/O is mocked; tool assembly and skill path validation use the real SDK.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock, patch
+
+import anyio
+import pytest
+import yaml
+from ms_tau_sdk.backend.models import MCPApplication, ProviderControl, ProviderCredential
+from ms_tau_sdk.resources.loader import tau_resource_paths
+from ms_tau_sdk.runtime.manager import RUNTIME_CAPABILITIES, SessionRuntimeManager
+from ms_tau_sdk.settings import TauSDKSettings
+from ms_tau_sdk.tools.skill_read import create_skill_read_tool
+from tau_coding.skills import load_skills_with_diagnostics
+from tau_coding.tools import ToolInputError
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW_PATH = REPO_ROOT / ".mainsequence/workflows/hunch-api.yaml"
+
+
+def restricted_settings(tmp_path: Path) -> TauSDKSettings:
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    agent = next(item for item in workflow["resources"] if item["kind"] == "harness_agent")
+    env = {item["name"]: item["value"] for item in agent["spec"]["env_vars"]}
+    with patch.dict(os.environ, env, clear=True):
+        return TauSDKSettings(_env_file=None, workspace=REPO_ROOT, tau_state_home=tmp_path)
+
+
+def test_hosted_catalog_preserves_hunch_but_excludes_generic_tools(tmp_path: Path) -> None:
+    settings = restricted_settings(tmp_path)
+    assert settings.exclude_base_tools is True
+    assert settings.exclude_mainsequence_mcp is True
+    assert settings.local_mode is False
+
+    bootstrap = SimpleNamespace(
+        runtime_capabilities=RUNTIME_CAPABILITIES,
+        session=SimpleNamespace(model_extra={}, harness="tau", active_provider="openai"),
+        lease=SimpleNamespace(lease_token="test-lease-not-a-credential"),
+        resume_snapshot=None,
+        history=SimpleNamespace(model_extra={}, has_more=False, entries=[], next_sequence=0),
+        provider_credentials={},
+        provider_control=ProviderControl(
+            schema_version=1,
+            catalog_digest="sha256:" + "0" * 64,
+            provider="openai",
+            model={
+                "model": "test-model",
+                "api": "openai-responses",
+                "input": ["text"],
+                "reasoning": True,
+                "thinking_levels": ["medium"],
+            },
+        ),
+        mcp_applications=[MCPApplication(name="hunch", resource_release_uid="test-hunch-release")],
+    )
+    backend = Mock(
+        bootstrap_tau_runtime=AsyncMock(return_value=bootstrap),
+        release_runtime_lease=AsyncMock(),
+        provider_credential_from_hydration=Mock(return_value=ProviderCredential(provider="openai")),
+    )
+    providers = Mock()
+    providers.for_session_credential.return_value = SimpleNamespace(
+        provider=Mock(), name="openai", model="test-model", thinking_level="medium"
+    )
+
+    class CatalogCaptured(Exception):
+        """Stop at the model-session boundary without opening a provider connection."""
+
+    async def inspect_catalog(config):
+        assert {tool.name for tool in config.tools} == {
+            "read",
+            "hunch__list_tools",
+            "hunch__call_tool",
+            "hunch__list_resources",
+            "hunch__read_resource",
+            "task_request_input",
+            "task_request_authorization",
+        }
+        raise CatalogCaptured
+
+    with (
+        patch("ms_tau_sdk.runtime.manager.register_runtime_platform"),
+        patch("ms_tau_sdk.runtime.manager.CodingSession.load", side_effect=inspect_catalog),
+        patch("ms_tau_sdk.runtime.manager.create_coding_tools") as coding_tools,
+        patch.object(SessionRuntimeManager, "_get_mcp_client", new_callable=AsyncMock) as mcp,
+    ):
+        manager = SessionRuntimeManager(settings=settings, backend=backend, providers=providers)
+        with pytest.raises(CatalogCaptured):
+            anyio.run(manager.get, "test-session")
+        coding_tools.assert_not_called()
+        mcp.assert_not_awaited()
+
+
+def test_hosted_runtime_reads_project_resources_from_tau_only(tmp_path: Path) -> None:
+    """Since ms-tau-sdk 2.0.24 the hosted runtime admits `.tau` resources alone.
+
+    The published skills under `.agents/skills/mcp_tools` reach the Agent through the API's MCP
+    (`hunch__list_resources`, `hunch__read_resource`), not as local skills.
+    """
+    paths = tau_resource_paths(REPO_ROOT, state_home=tmp_path)
+    assert paths.agents_root is None
+    assert REPO_ROOT / ".tau" / "skills" in paths.skills_dirs
+    assert not any(".agents" in str(directory) for directory in paths.skills_dirs)
+    skills, diagnostics = load_skills_with_diagnostics(paths)
+    assert not diagnostics and skills == []
+    assert paths.paths.project_tau_dir(REPO_ROOT) == REPO_ROOT / ".tau"
+    assert (REPO_ROOT / ".tau" / "SYSTEM.md").is_file()
+
+
+def test_local_reader_serves_only_the_repository_skill_files(tmp_path: Path):
+    skills, diagnostics = load_skills_with_diagnostics(
+        tau_resource_paths(REPO_ROOT, state_home=tmp_path, include_development_resources=True)
+    )
+    assert not diagnostics
+    skill_files = {path.resolve() for path in (REPO_ROOT / ".agents/skills").rglob("SKILL.md")}
+    assert {Path(skill.path).resolve() for skill in skills} == skill_files
+    business = REPO_ROOT / ".agents/skills/mcp_tools/hunch-project-state/SKILL.md"
+    assert business.resolve() in skill_files
+    reader = create_skill_read_tool(cwd=REPO_ROOT, skills=lambda: skills)
+
+    async def read_paths():
+        for path in (
+            REPO_ROOT / "pyproject.toml",
+            REPO_ROOT / ".tau/SYSTEM.md",
+            REPO_ROOT / ".agents/agent_card.json",
+            REPO_ROOT / "src/hunch/settings.py",
+        ):
+            with pytest.raises(ToolInputError, match="outside the available skills"):
+                await reader.execute_fn("read-other", {"path": str(path)})
+        result = await reader.execute_fn("read-local-business", {"path": str(business)})
+        assert "name: hunch-project-state" in result.content[0].text
+
+    anyio.run(read_paths)

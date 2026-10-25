@@ -1,13 +1,10 @@
-"""FastAPI entrypoint discovered from the CodeRepository's top-level api directory."""
+"""FastAPI entrypoint discovered from the CodeRepository's top-level api directory.
 
-from fastapi import FastAPI
-from mainsequence.client import User
-from mainsequence.server.fastapi import install_request_identity
+The `hunch` workflow declaration points its `source_path` here, so this file stays at this path.
+It is not part of the wheel. The application itself is built by `hunch.api.app.main.create_app`,
+which installs the Main Sequence request identity the platform's launcher requires.
+"""
 
-app = FastAPI()
-install_request_identity(app)
+from hunch.api.app.main import app
 
-
-@app.get("/")
-async def hello() -> dict[str, str]:
-    return {"message": "Hello, world!", "user_uid": User.get_logged_user().uid}
+__all__ = ["app"]

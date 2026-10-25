@@ -1,0 +1,37 @@
+{
+  "name": "Hunch Agent",
+  "description": "The one Hunch assistant: helps a person write and understand their takes and work with the portfolios, accounts and proposals Hunch built for them, through verified Hunch API tools.",
+  "version": "0.1.0",
+  "capabilities": {
+    "extensions": [
+      {
+        "uri": "https://mainsequence.ai/a2a/extensions/response-kind/v1",
+        "description": "Select whether message:send returns a completed message or an asynchronous task.",
+        "required": false,
+        "params": {
+          "supportedResponseKinds": [
+            "message"
+          ],
+          "defaultResponseKind": "message"
+        }
+      }
+    ]
+  },
+  "skills": [
+    {
+      "id": "project-state",
+      "name": "Hunch Project State And Takes",
+      "description": "Inspect the Hunch capability catalog, venues and disclaimers, and read the takes of the person served.",
+      "tags": [
+        "hunch",
+        "takes",
+        "project-state"
+      ],
+      "examples": [
+        "What can you do for me right now?",
+        "Show me my takes."
+      ],
+      "path": ".agents/skills/mcp_tools/hunch-project-state/SKILL.md"
+    }
+  ]
+}
