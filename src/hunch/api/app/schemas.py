@@ -107,6 +107,10 @@ class ProfileResource(BaseModel):
     user_uid: str
     handle: str
     display_name: str | None = None
+    email_digest: bool = Field(default=False, description="Daily email digest opted in.")
+    email_address: str | None = Field(
+        default=None, description="Digest address; null means the platform user's email."
+    )
     created_at: dt.datetime | None = None
     updated_at: dt.datetime | None = None
 
@@ -116,6 +120,8 @@ class ProfileUpdateRequest(BaseModel):
 
     handle: str | None = Field(default=None, min_length=3, max_length=32)
     display_name: str | None = Field(default=None, max_length=255)
+    email_digest: bool | None = None
+    email_address: str | None = Field(default=None, max_length=255)
 
 
 # Takes ------------------------------------------------------------------------------------------

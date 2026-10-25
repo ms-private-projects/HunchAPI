@@ -64,10 +64,22 @@ def update_profile(
     *,
     handle: str | None = None,
     display_name: str | None = None,
+    email_digest: bool | None = None,
+    email_address: str | None = None,
 ) -> HunchUserProfile:
-    """Change the person's own handle or display name."""
+    """Change the person's own handle, display name or email digest preferences."""
     profile = ensure_profile(user_uid)
     values: dict[str, object] = {}
+    if email_digest is not None or email_address is not None:
+        metadata = dict(profile.metadata_json or {})
+        if email_digest is not None:
+            metadata["email_digest"] = bool(email_digest)
+        if email_address is not None:
+            cleaned = email_address.strip()
+            if cleaned and ("@" not in cleaned or " " in cleaned):
+                raise ValueError("That does not look like an email address.")
+            metadata["email_address"] = cleaned or None
+        values["metadata_json"] = metadata
     if handle is not None:
         normalized = normalize_handle(handle)
         if normalized != profile.handle:

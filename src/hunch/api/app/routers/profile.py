@@ -34,7 +34,11 @@ def read_profile() -> ProfileResource:
 def update_profile(payload: ProfileUpdateRequest) -> ProfileResource:
     try:
         return patch_profile(
-            acting_user(), handle=payload.handle, display_name=payload.display_name
+            acting_user(),
+            handle=payload.handle,
+            display_name=payload.display_name,
+            email_digest=payload.email_digest,
+            email_address=payload.email_address,
         )
     except Exception as exc:
         raise api_http_error(exc) from exc

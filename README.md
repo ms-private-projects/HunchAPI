@@ -37,6 +37,7 @@ src/hunch/               # the installable package
   funding/               # HunchFunding, HunchRebalanceProposal, ms-markets ledger, execution flow
   reviews/               # HunchDailyReview and the daily review
   community/             # leaderboard snapshots and notifications
+  channels/              # email digest: composition, delivery, outbox/platform/smtp senders
   operations/            # build/review orchestration (inline locally, Jobs hosted)
   migrations/            # `hunch.migrations:migration` provider, schema gate, revisions 0001-0003
   api/app/               # routers, services, schemas, identity, errors, capabilities, mcp_server
@@ -101,6 +102,11 @@ orders at the last stored close and writes the same ms-markets rows a connector 
 the connector releases, and `HUNCH_RESEARCH_MODE=inference` with `HUNCH_INFERENCE_ENVIRONMENT_UID`
 to research through recorded inference (ADR 0002 explains the local finding).
 
+Research sources: `HUNCH_RESEARCH_SOURCES` (default `quant`; add `finnhub` with
+`HUNCH_FINNHUB_API_KEY` for news and fundamentals). Email digests: `HUNCH_EMAIL_SENDER` (`outbox`
+locally, writes `.hunch-outbox/*.eml`; `platform` hosted), `HUNCH_SITE_URL` for links; run
+`src/jobs/run_hunch_email_digest.py --scheduled` after opting in on the profile.
+
 ```bash
 curl http://127.0.0.1:8601/v1/project-state/capabilities
 curl -X POST http://127.0.0.1:8601/v1/profile/accounts/actions/link \
@@ -136,5 +142,6 @@ model portfolio and a performance record; it can be practiced, published, forked
 linked account can fund it in approval or autopilot mode, proposals execute through the venue
 connector (simulated locally), the daily review watches drift and the thesis, and notifications
 report every step. Hosted execution waits for the Alpaca connector's execution capability (plan
-§6.1); Interactive Brokers executes manually (ADR 0003). Email channels and external research
-sources (phase 4) are not started.
+§6.1); Interactive Brokers executes manually (ADR 0003). Phase 4 adds risk metrics, research
+grounded in cited evidence (bar facts, Finnhub news and fundamentals) and the daily email digest;
+inbound email replies wait on a platform channel (ADR 0004).

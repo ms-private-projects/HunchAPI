@@ -202,10 +202,15 @@ def profile(arguments: Mapping[str, Any]) -> Any:
     user = acting_user()
     if operation == "get":
         return get_profile(user)
+    digest = arguments.get("email_digest")
+    if digest is not None and not isinstance(digest, bool):
+        raise ValueError("email_digest must be true or false.")
     return patch_profile(
         user,
         handle=_optional_text(arguments, "handle"),
         display_name=_optional_text(arguments, "display_name"),
+        email_digest=digest,
+        email_address=_optional_text(arguments, "email_address"),
     )
 
 
@@ -463,6 +468,11 @@ PROJECT_AGENT_TOOLS: tuple[ProjectAgentTool, ...] = (
                 properties={
                     "handle": _string("New public handle: 3 to 32 lower-case letters, digits, _."),
                     "display_name": _string("New display name."),
+                    "email_digest": {
+                        "type": "boolean",
+                        "description": "Opt in or out of the daily email digest.",
+                    },
+                    "email_address": _string("Digest address; empty to use the platform email."),
                 },
             ),
         ),

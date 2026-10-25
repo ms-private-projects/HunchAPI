@@ -267,6 +267,36 @@ resources:
     automatic_redeployment:
       enabled: true
       tag_regex: null
+- key: hunch-email-digest
+  kind: job
+  access:
+    branches:
+    - repository: MetaTables
+      policy: reader
+  spec:
+    name: Hunch Email Digest
+    description: 'Email every opted-in person a digest of their undelivered notifications and pending proposals (--scheduled), after the daily reviews.'
+    execution_path: src/jobs/run_hunch_email_digest.py
+    cpu_request: '0.25'
+    memory_request: '0.5'
+    max_runtime_seconds: 1800
+    spot: false
+    env_vars:
+    # `platform` delivers through a Main Sequence Notification with include_email; `outbox` and
+    # `smtp` are the local and self-hosted alternatives (see hunch/channels/email.py).
+    - name: HUNCH_EMAIL_SENDER
+      value: platform
+    - name: HUNCH_SITE_URL
+      value: ''
+    task_schedule:
+      schedule:
+        type: crontab
+        expression: '30 13 * * 1-5'
+        timezone: UTC
+    scheduled_command_args: ['--scheduled']
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
 # The migration Job runs from the API's candidate image. The API deploys only after it succeeds,
 # and the Agent deploys from its own image only after the API whose MCP it uses.
 execution:

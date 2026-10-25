@@ -12,3 +12,4 @@ site/
 
 # Private MetaTables launcher connection
 /.local/
+.hunch-outbox/

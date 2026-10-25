@@ -95,6 +95,7 @@ def test_workflow_declares_the_api_the_one_agent_and_the_migration() -> None:
         "hunch-daily-review-dispatcher",
         "hunch-execution-sync",
         "hunch-leaderboard",
+        "hunch-email-digest",
     }
     for job in jobs:
         assert (ROOT / job["spec"]["execution_path"]).is_file(), job["key"]
