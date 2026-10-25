@@ -12,14 +12,17 @@ from hunch import __version__
 from hunch.api.app.schemas import (
     AssistantConfiguration,
     AssistantRuntime,
+    ConnectorConfiguration,
     ProjectConfigurationResponse,
     ResearchConfiguration,
 )
 from hunch.api.app.site_agent import SiteAgent, resolve_site_agent
+from hunch.connectors import connector_status
 from hunch.settings import (
     VENUES,
     bars_provider,
     build_execution,
+    connector_mode,
     inference_model,
     inference_provider,
     research_mode,
@@ -101,6 +104,13 @@ def research_configuration() -> ResearchConfiguration:
     )
 
 
+def connector_configuration() -> ConnectorConfiguration:
+    return ConnectorConfiguration(
+        mode=connector_mode(),
+        venues={venue: bool(connector_status(venue)["configured"]) for venue in VENUES},
+    )
+
+
 def get_project_configuration(
     *, request_user_uid: str | None = None
 ) -> ProjectConfigurationResponse:
@@ -113,6 +123,7 @@ def get_project_configuration(
         api_version=__version__,
         venues=list(VENUES),
         research=research_configuration(),
+        connectors=connector_configuration(),
         assistant=assistant_configuration(agent),
         organization_environment_uid=agent.organization_environment_uid if agent else None,
         agent_uid=agent.agent_uid if agent else None,
@@ -122,6 +133,7 @@ def get_project_configuration(
 
 __all__ = [
     "assistant_configuration",
+    "connector_configuration",
     "get_project_configuration",
     "local_tau_ready",
     "research_configuration",

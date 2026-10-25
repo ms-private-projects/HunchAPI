@@ -66,10 +66,23 @@ class ResearchConfiguration(BaseModel):
     inference_model: str | None = None
 
 
+class ConnectorConfiguration(BaseModel):
+    mode: str = Field(
+        description="`live` calls the venue connectors; `simulated` is a local paper venue."
+    )
+    venues: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Per venue: whether a connector is configured in this mode.",
+    )
+
+
 class ProjectConfigurationResponse(BaseModel):
     api_version: str
     venues: list[str]
     research: ResearchConfiguration
+    connectors: ConnectorConfiguration = Field(
+        default_factory=lambda: ConnectorConfiguration(mode="live")
+    )
     assistant: AssistantConfiguration = Field(
         default_factory=lambda: AssistantConfiguration(enabled=False)
     )
@@ -472,6 +485,7 @@ class MarkReadRequest(BaseModel):
 
 __all__ = [
     "AutopilotPolicyResource",
+    "ConnectorConfiguration",
     "DISCLAIMERS",
     "FundPositionResource",
     "FundRequest",

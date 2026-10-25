@@ -82,6 +82,7 @@ def test_project_state_returns_capabilities_and_configuration() -> None:
     research = payload["configuration"]["research"]
     assert research["mode"] in {"inference", "heuristic"}
     assert research["build_execution"] in {"inline", "job"}
+    assert payload["configuration"]["connectors"]["mode"] in {"live", "simulated"}
     assert {item["key"] for item in payload["capabilities"]} >= {"takes", "portfolios"}
 
 
