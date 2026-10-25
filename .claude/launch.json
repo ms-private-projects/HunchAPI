@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Hunch API + Tau + Site",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["scripts/dev_stack.sh", "all"],
+      "port": 5601,
+      "url": "http://127.0.0.1:5601"
+    },
+    {
+      "name": "Hunch API (8601)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["scripts/dev_stack.sh", "api"],
+      "port": 8601,
+      "url": "http://127.0.0.1:8601"
+    },
+    {
+      "name": "Hunch Site (5601)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["scripts/dev_stack.sh", "site"],
+      "port": 5601,
+      "url": "http://127.0.0.1:5601"
+    }
+  ]
+}

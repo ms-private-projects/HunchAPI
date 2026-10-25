@@ -77,18 +77,8 @@ def upgrade() -> None:
             name=op.f("fk__hunch__take__signal_uid__ms_markets__signalmetad_ca2ae6bfb7"),
             ondelete="SET NULL",
         ),
-        sa.ForeignKeyConstraint(
-            ["forked_from_take_uid"],
-            ["hunch__take.uid"],
-            name=op.f("fk__hunch__take__forked_from_take_uid__hunch__take__uid"),
-            ondelete="SET NULL",
-        ),
-        sa.ForeignKeyConstraint(
-            ["origin_take_uid"],
-            ["hunch__take.uid"],
-            name=op.f("fk__hunch__take__origin_take_uid__hunch__take__uid"),
-            ondelete="SET NULL",
-        ),
+        # forked_from_take_uid and origin_take_uid carry no foreign key: the ms-markets runtime
+        # rejects a self-referencing MetaTable as a dependency cycle (ADR 0001, decision 7).
         sa.PrimaryKeyConstraint("uid", name=op.f("pk__hunch__take")),
         info={"namespace": _NAMESPACE, "identifier": "HunchTake", "markets_storage_app": _APP},
     )

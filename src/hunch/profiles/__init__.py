@@ -80,11 +80,12 @@ class HunchUserProfileTable(ProjectStorageNameMixin, HunchMarketsMetaTableMixin,
         default=utc_now,
         info={"label": "Created at", "description": "When the profile was created (UTC)."},
     )
+    # Services set updated_at explicitly: a Python-side `onupdate` default does not travel
+    # through the MetaTables compiled-SQL update path.
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         default=utc_now,
-        onupdate=utc_now,
         info={"label": "Updated at", "description": "When the profile last changed (UTC)."},
     )
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(

@@ -32,6 +32,22 @@
         "Show me my takes."
       ],
       "path": ".agents/skills/mcp_tools/hunch-project-state/SKILL.md"
+    },
+    {
+      "id": "take-authoring",
+      "name": "Writing And Managing Takes",
+      "description": "Help a person write, refine, publish, fork and archive their takes and keep their Hunch profile.",
+      "tags": [
+        "hunch",
+        "takes",
+        "profile"
+      ],
+      "examples": [
+        "I think humanoid robots are coming to every home. Make this a take with a 10% cash buffer.",
+        "Publish my robots take.",
+        "Fork the top take on the leaderboard for me."
+      ],
+      "path": ".agents/skills/mcp_tools/hunch-take-authoring/SKILL.md"
     }
   ]
 }

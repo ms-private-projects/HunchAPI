@@ -35,8 +35,11 @@ not support.
    `AccountTable.uid` with `RESTRICT` and a unique index: one connector account links to one Hunch
    user, and the link must be removed in Hunch before the account row could ever be deleted.
    `user_uid` columns are strings (the Main Sequence user UID), as in the connectors.
-7. **Fork lineage.** `forked_from_take_uid` and `origin_take_uid` are self-references with
-   `SET NULL`, attached after the table is defined so the target carries the resolved physical name.
+7. **Fork lineage.** `forked_from_take_uid` and `origin_take_uid` are indexed take UIDs without
+   a database foreign key. The ms-markets runtime orders MetaTables by their foreign-key graph and
+   rejects a self-referencing table as a dependency cycle (`resolve_markets_meta_table_models`),
+   so the take services validate the lineage targets instead. A separate lineage table was
+   considered and rejected as an extra join for two nullable columns.
 8. **Migrations.** Provider `hunch.migrations:migration` with its own Alembic version table
    `hunch__alembic_version`; revision 0001 creates the four tables with the constraint names the
    models derive. The gate `skip_if_schema_behind` waits for both `msm_migrations:migration` and

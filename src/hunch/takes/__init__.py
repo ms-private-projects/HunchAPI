@@ -11,7 +11,7 @@ import datetime as dt
 import uuid
 from typing import Any, ClassVar
 
-from sqlalchemy import JSON, DateTime, ForeignKey, ForeignKeyConstraint, Index, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
@@ -100,8 +100,9 @@ class TakeTable(ProjectStorageNameMixin, HunchMarketsMetaTableMixin, MarketsBase
         default="private",
         info={"label": "Visibility", "description": "private or public."},
     )
-    # Fork lineage: self-references, attached below once the table exists so the target carries
-    # the resolved physical name and schema instead of a hard-coded string.
+    # Fork lineage. These are take UIDs without a database foreign key: the ms-markets runtime
+    # orders MetaTables by their foreign-key graph and rejects a self-reference as a cycle. The
+    # take services validate that both point at existing takes (ADR 0001, decision 7).
     forked_from_take_uid: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         nullable=True,
@@ -143,22 +144,13 @@ class TakeTable(ProjectStorageNameMixin, HunchMarketsMetaTableMixin, MarketsBase
         default=utc_now,
         info={"label": "Created at", "description": "When the take was created (UTC)."},
     )
+    # Services set updated_at explicitly: a Python-side `onupdate` default does not travel
+    # through the MetaTables compiled-SQL update path.
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         default=utc_now,
-        onupdate=utc_now,
         info={"label": "Updated at", "description": "When the take last changed (UTC)."},
-    )
-
-
-for _lineage_column in ("forked_from_take_uid", "origin_take_uid"):
-    TakeTable.__table__.append_constraint(
-        ForeignKeyConstraint(
-            [_lineage_column],
-            [TakeTable.__table__.c.uid],
-            ondelete="SET NULL",
-        )
     )
 
 

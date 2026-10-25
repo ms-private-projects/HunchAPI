@@ -16,10 +16,20 @@ acting user: the requester on a requester-bound call, the caller on any other, n
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from fastapi import HTTPException
 
 from mainsequence.client import RequestIdentityError, User
 from msm.api.http import api_error
+
+
+@dataclass(frozen=True, slots=True)
+class ActingUser:
+    """The person a request acts for, with the display name the platform signed, if any."""
+
+    uid: str
+    username: str | None
 
 
 def bound_caller_uid() -> str | None:
@@ -47,17 +57,38 @@ def requester_uid() -> str | None:
     return requester.uid if requester is not None else None
 
 
+def bound_acting_user() -> ActingUser | None:
+    """Return the acting user, or None when no caller is bound."""
+    try:
+        requester = User.get_requester()
+    except RequestIdentityError:
+        return None
+    if requester is not None:
+        return ActingUser(uid=requester.uid, username=getattr(requester, "username", None))
+    try:
+        caller = User.get_logged_user()
+    except RequestIdentityError:
+        return None
+    return ActingUser(uid=caller.uid, username=getattr(caller, "username", None))
+
+
+def acting_user() -> ActingUser:
+    """Return the acting user, or reject the request with 401."""
+    user = bound_acting_user()
+    if user is None:
+        raise unauthenticated()
+    return user
+
+
 def bound_acting_user_uid() -> str | None:
     """Return the acting user's UID, or None when no caller is bound."""
-    return requester_uid() or bound_caller_uid()
+    user = bound_acting_user()
+    return user.uid if user is not None else None
 
 
 def acting_user_uid() -> str:
     """Return the acting user's UID, or reject the request with 401."""
-    uid = bound_acting_user_uid()
-    if uid is None:
-        raise unauthenticated()
-    return uid
+    return acting_user().uid
 
 
 def unauthenticated() -> HTTPException:
@@ -69,7 +100,10 @@ def unauthenticated() -> HTTPException:
 
 
 __all__ = [
+    "ActingUser",
+    "acting_user",
     "acting_user_uid",
+    "bound_acting_user",
     "bound_acting_user_uid",
     "bound_caller_uid",
     "caller_uid",

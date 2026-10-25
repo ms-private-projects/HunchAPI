@@ -59,8 +59,11 @@ def test_profile_accounts_link_a_user_to_connector_created_accounts() -> None:
 def test_take_belongs_to_a_profile_and_carries_fork_lineage() -> None:
     foreign_keys = _foreign_keys(TakeTable)
     assert foreign_keys["owner_user_uid"] == ("hunch__user_profile.user_uid", "CASCADE")
-    assert foreign_keys["forked_from_take_uid"] == ("hunch__take.uid", "SET NULL")
-    assert foreign_keys["origin_take_uid"] == ("hunch__take.uid", "SET NULL")
+    # Lineage columns are indexed UUIDs without a foreign key: the ms-markets runtime orders
+    # MetaTables by their foreign-key graph and rejects a self-reference as a cycle.
+    assert "forked_from_take_uid" not in foreign_keys
+    assert "origin_take_uid" not in foreign_keys
+    assert {"forked_from_take_uid", "origin_take_uid"} <= set(TakeTable.__table__.c.keys())
     assert foreign_keys["signal_uid"] == (
         SignalMetadataTable.__table__.name + ".signal_uid",
         "SET NULL",
