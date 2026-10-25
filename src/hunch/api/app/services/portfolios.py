@@ -14,6 +14,7 @@ from hunch.portfolios.build import (
     take_revisions,
     take_weights,
 )
+from hunch.portfolios.metrics import performance_metrics
 from hunch.takes import Take
 from hunch.takes.revisions import TakeRevision
 from hunch.takes.services import get_take_for, owned_take
@@ -32,6 +33,7 @@ def revision_resource(row: TakeRevision) -> RevisionResource:
         cash_weight=research.get("cash_weight"),
         guardrail_notes=list(research.get("guardrail_notes") or []),
         candidates=list(research.get("candidates") or []),
+        evidence=list(research.get("evidence") or []),
         created_by=row.created_by,
         inference_request_uids=list(row.inference_request_uids or []),
         signal_time_index=row.signal_time_index,
@@ -98,6 +100,7 @@ def take_performance_frame(user: ActingUser, take_uid: str) -> TabularFrameRespo
                 "activated_at": take.activated_at.isoformat() if take.activated_at else None,
                 "simulated": take.status != "active_funded",
                 "points": len(rows),
+                "metrics": performance_metrics(rows),
             },
         },
     )

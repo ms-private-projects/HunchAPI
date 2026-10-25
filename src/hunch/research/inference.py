@@ -19,6 +19,7 @@ from hunch.research.models import (
     ResearchError,
     ResearchOutput,
 )
+from hunch.research.sources import Evidence, evidence_block
 from hunch.settings import (
     inference_environment_uid,
     inference_model,
@@ -40,6 +41,9 @@ person's constraints allow leveraged or inverse products, at most one hedge.
 - Conviction is a relative sizing hint between 0 and 1.
 - Write the rationale in Markdown for the person: the thesis in one paragraph, why these holdings \
 express it, the roles, the main risks, and what would change your mind. Plain language, no hype.
+- Ground every claim about a company in the evidence list when it covers it, citing its id in \
+square brackets (for example [E3]) in the rationale and in each candidate's `citations`. When the \
+evidence does not cover a point, say it rests on general knowledge; never invent a source.
 - You are not an investment adviser; the person decides. Never promise returns.
 """
 
@@ -89,9 +93,14 @@ def response_schema(tickers: Sequence[str]) -> dict[str, Any]:
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["ticker", "role", "case", "risks", "conviction"],
+                    "required": ["ticker", "role", "case", "risks", "conviction", "citations"],
                     "properties": {
                         "ticker": {"type": "string", "enum": list(tickers)},
+                        "citations": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "maxItems": 20,
+                        },
                         "role": {
                             "type": "string",
                             "enum": ["pure_play", "supplier", "enabler", "hedge", "defensive"],
@@ -108,12 +117,16 @@ def response_schema(tickers: Sequence[str]) -> dict[str, Any]:
 
 
 def _user_prompt(
-    take: Take, constraints: TakeConstraints, instruments: Sequence[HunchInstrument]
+    take: Take,
+    constraints: TakeConstraints,
+    instruments: Sequence[HunchInstrument],
+    evidence: Sequence[Evidence] = (),
 ) -> str:
     return (
         f"# Take\n\nTitle: {take.title}\n\nThesis:\n{take.thesis_text}\n\n"
         f"# Constraints\n{json.dumps(constraints.model_dump(), indent=2)}\n\n"
         f"# Universe (choose tickers only from this list)\n{_universe_block(instruments)}\n\n"
+        f"# Evidence (cite by id)\n{evidence_block(evidence)}\n\n"
         "Return the JSON object described by the schema."
     )
 
@@ -195,6 +208,7 @@ def inference_research(
     *,
     revision: int = 1,
     client: Any | None = None,
+    evidence: Sequence[Evidence] = (),
 ) -> ResearchOutput:
     """One recorded completion; raises ``ResearchError`` when no usable answer comes back."""
     constraints = TakeConstraints.model_validate(take.constraints_json or {})
@@ -203,7 +217,7 @@ def inference_research(
         raise ResearchError("The instrument universe is empty.")
     completion = recorded_completion(
         system=SYSTEM_PROMPT,
-        user=_user_prompt(take, constraints, tradable),
+        user=_user_prompt(take, constraints, tradable, evidence),
         schema=response_schema([row.ticker for row in tradable]),
         operation="hunch-take-research",
         metadata={"take_uid": str(take.uid), "revision": revision},
@@ -215,7 +229,12 @@ def inference_research(
         brief = ResearchBrief.model_validate(
             {**content.get("brief", {}), "horizon_months": constraints.horizon_months}
         )
-        candidates = [CandidateInstrument.model_validate(item) for item in content["candidates"]]
+        known = {item.id for item in evidence}
+        candidates = []
+        for item in content["candidates"]:
+            candidate = CandidateInstrument.model_validate(item)
+            candidate.citations = [c for c in candidate.citations if c in known]
+            candidates.append(candidate)
     except Exception as exc:
         raise ResearchError("The research model answer does not match the contract.") from exc
     return ResearchOutput(
@@ -225,6 +244,7 @@ def inference_research(
         rationale_md=str(content.get("rationale_md") or ""),
         inference_request_uids=[completion.request_uid] if completion.request_uid else [],
         conversation_uid=completion.conversation_uid,
+        evidence=list(evidence),
     )
 
 

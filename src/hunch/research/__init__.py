@@ -20,6 +20,7 @@ from hunch.research.models import (
     ResearchError,
     ResearchOutput,
 )
+from hunch.research.sources import Evidence, collect_evidence
 from hunch.settings import research_mode
 from hunch.takes import Take
 from hunch.takes.services import TakeConstraints
@@ -34,11 +35,21 @@ def research_take(
 ) -> ResearchOutput:
     """Candidates and rationale for the take, in the requested or configured mode."""
     selected = mode or research_mode()
+    tradable = [row for row in instruments if row.is_tradable]
+    evidence: list[Evidence] = collect_evidence(tradable, keywords_for(take))
     if selected == "heuristic":
-        return heuristic_research(take, instruments)
+        return heuristic_research(take, instruments, evidence=evidence)
     from hunch.research.inference import inference_research
 
-    return inference_research(take, instruments, revision=revision)
+    return inference_research(take, instruments, revision=revision, evidence=evidence)
+
+
+def keywords_for(take: Take) -> list[str]:
+    from hunch.research.heuristic import thesis_themes
+
+    return [
+        theme for theme, _ in thesis_themes(f"{take.title}. {take.thesis_text}").most_common(12)
+    ]
 
 
 def propose_basket(

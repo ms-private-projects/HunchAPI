@@ -33,6 +33,7 @@ def compute_entries(
 ) -> list[dict[str, Any]]:
     """Ranked leaderboard entries for the given date, computed from the portfolio series."""
     from hunch.portfolios.build import take_performance
+    from hunch.portfolios.metrics import performance_metrics
 
     entries: list[dict[str, Any]] = []
     for take in takes if takes is not None else eligible_takes():
@@ -51,6 +52,7 @@ def compute_entries(
                 "is_funded": take.status == "active_funded",
                 "is_simulated": take.status != "active_funded",
                 "last_time_index": last["time_index"],
+                "metrics": performance_metrics(points),
             }
         )
     entries.sort(

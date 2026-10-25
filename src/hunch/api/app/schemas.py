@@ -201,6 +201,11 @@ class RevisionResource(BaseModel):
     cash_weight: float | None = None
     guardrail_notes: list[str] = Field(default_factory=list)
     candidates: list[dict[str, Any]] = Field(default_factory=list)
+    evidence: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Numbered evidence items (id, ticker, kind, title, summary, source, url, "
+        "published_at) the rationale and candidates cite.",
+    )
     created_by: str
     inference_request_uids: list[str] = Field(default_factory=list)
     signal_time_index: dt.datetime | None = None
@@ -448,6 +453,11 @@ class LeaderboardEntryResource(BaseModel):
     is_simulated: bool = True
     is_funded: bool = False
     origin_take_uid: str | None = None
+    metrics: dict[str, Any] | None = Field(
+        default=None,
+        description="total_return, annualised_return, annualised_volatility, sharpe_ratio, "
+        "max_drawdown, best_day, worst_day, sessions (null until two sessions).",
+    )
 
 
 class LeaderboardResponse(BaseModel):

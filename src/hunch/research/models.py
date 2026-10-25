@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from hunch.research.sources import Evidence
+
 Role = Literal["pure_play", "supplier", "enabler", "hedge", "defensive"]
 
 # Relative sizing by role, before conviction and constraints.
@@ -44,6 +46,9 @@ class CandidateInstrument(BaseModel):
     case: str = Field(default="", max_length=1000)
     risks: list[str] = Field(default_factory=list, max_length=10)
     conviction: float = Field(default=0.5, ge=0.0, le=1.0)
+    citations: list[str] = Field(
+        default_factory=list, max_length=20, description="Evidence ids (E1, E2, ...) relied on."
+    )
 
 
 class ResearchOutput(BaseModel):
@@ -55,6 +60,7 @@ class ResearchOutput(BaseModel):
     rationale_md: str = ""
     inference_request_uids: list[str] = Field(default_factory=list)
     conversation_uid: str | None = None
+    evidence: list[Evidence] = Field(default_factory=list)
 
 
 class BasketWeight(BaseModel):

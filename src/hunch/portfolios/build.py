@@ -130,6 +130,7 @@ def build_take(
             "guardrail_notes": proposal.guardrail_notes,
             "cash_weight": proposal.cash_weight,
             "conversation_uid": proposal.research.conversation_uid,
+            "evidence": [item.model_dump(mode="json") for item in proposal.research.evidence],
         },
         inference_request_uids=proposal.research.inference_request_uids or None,
         created_by=created_by or proposal.research.mode,

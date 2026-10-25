@@ -12,7 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from hunch.community.notifications import notify
@@ -29,6 +29,14 @@ TOTAL_DRIFT_THRESHOLD = 0.10
 VERDICTS: tuple[str, ...] = ("hold", "rebalance", "thesis_change")
 
 ProposalFactory = Callable[..., Any]
+REVIEW_NEWS_DAYS = 3
+
+
+def conditions_of(constraints: TakeConstraints) -> list[str]:
+    """The person's change-my-mind conditions, one per line."""
+    text = constraints.change_my_mind or ""
+    return [line.strip(" -•\t") for line in text.splitlines() if line.strip(" -•\t")]
+
 
 THESIS_SYSTEM_PROMPT = """You are the daily reviewer of Hunch, a product that turns a person's \
 investment thesis (their "take") into a basket of US-listed instruments.
@@ -40,8 +48,9 @@ interest and without hype:
 - `rebalance`: the basket still expresses the thesis but weights drifted far enough to act.
 - `thesis_change`: one of the person's conditions has plausibly triggered, or the basket no \
 longer expresses the thesis; the person should review the take.
-You have no live news; reason only from what is given and say so. Never promise returns. \
-Answer with the JSON object described by the schema."""
+Reason only from what is given: the evidence list is the only news you have, cite its ids in \
+square brackets (for example [E2]) and say when a judgement rests on general knowledge instead. \
+Never promise returns. Answer with the JSON object described by the schema."""
 
 
 def thesis_schema() -> dict[str, Any]:
@@ -104,24 +113,35 @@ def drift_exceeds(drift: dict[str, Any]) -> bool:
     )
 
 
-def heuristic_thesis_check(take: Take, drift: dict[str, Any], performance: dict[str, Any]) -> dict:
-    """Deterministic review: drift decides; conditions are surfaced, never judged."""
+def heuristic_thesis_check(
+    take: Take,
+    drift: dict[str, Any],
+    performance: dict[str, Any],
+    evidence: Sequence[Any] = (),
+) -> dict:
+    """Deterministic review: drift decides; conditions and news are surfaced, never judged."""
     constraints = TakeConstraints.model_validate(take.constraints_json or {})
     verdict = "rebalance" if drift_exceeds(drift) else "hold"
     ret = performance.get("return_since_activation")
+    news = [item for item in evidence if item.kind == "news"]
     reasoning = (
         f"Deterministic review. Max weight drift {drift['max_abs_drift']:.2%}, total "
         f"{drift['total_abs_drift']:.2%}; "
         + (f"return since activation {ret:+.2%}. " if ret is not None else "no value yet. ")
-        + "No live news is consulted in this mode; the person's conditions are listed for review."
+        + (
+            f"{len(news)} recent news items are listed below for the person to judge."
+            if news
+            else "No news source is configured; the person's conditions are listed for review."
+        )
     )
     return {
         "mode": "heuristic",
         "verdict": verdict,
         "reasoning": reasoning,
         "triggered_conditions": [],
-        "conditions": list(constraints.change_my_mind or []),
+        "conditions": conditions_of(constraints),
         "confidence": 0.5,
+        "evidence": [item.model_dump(mode="json") for item in evidence],
     }
 
 
@@ -133,17 +153,21 @@ def inference_thesis_check(
     *,
     review_date: dt.date,
     client: Any | None = None,
+    evidence: Sequence[Any] = (),
 ) -> tuple[dict[str, Any], list[str]]:
     from hunch.research.inference import recorded_completion
+    from hunch.research.sources import evidence_block
 
     constraints = TakeConstraints.model_validate(take.constraints_json or {})
     user = (
         f"# Take\n\nTitle: {take.title}\n\nThesis:\n{take.thesis_text}\n\n"
         f"# Conditions that would change the person's mind\n"
-        f"{json.dumps(constraints.change_my_mind or [], indent=2)}\n\n"
+        f"{json.dumps(conditions_of(constraints), indent=2)}\n\n"
         f"# Basket\n{json.dumps(basket, indent=2)}\n\n"
         f"# Performance since activation\n{json.dumps(performance, indent=2, default=str)}\n\n"
         f"# Drift\n{json.dumps({k: v for k, v in drift.items() if k != 'positions'}, indent=2)}\n\n"
+        f"# Evidence (cite by id; news is from the last {REVIEW_NEWS_DAYS} days)\n"
+        f"{evidence_block(evidence)}\n\n"
         f"Review date: {review_date.isoformat()}. Return the JSON object described by the schema."
     )
     completion = recorded_completion(
@@ -166,8 +190,9 @@ def inference_thesis_check(
         "verdict": verdict,
         "reasoning": str(content.get("reasoning") or ""),
         "triggered_conditions": [str(c) for c in content.get("triggered_conditions") or []],
-        "conditions": list(constraints.change_my_mind or []),
+        "conditions": conditions_of(constraints),
         "confidence": float(content.get("confidence") or 0.0),
+        "evidence": [item.model_dump(mode="json") for item in evidence],
     }
     return check, [completion.request_uid] if completion.request_uid else []
 
@@ -184,6 +209,24 @@ def performance_summary(take: Take) -> dict[str, Any]:
         "return_since_activation": round(float(last["close"]) - 1.0, 6),
         "as_of": last["time_index"],
     }
+
+
+def review_evidence(take: Take, target: dict[str, float]) -> list[Any]:
+    """Recent news (and the quant facts) for the basket's instruments; never fails a review."""
+    from hunch.instruments.services import ensure_universe, instruments_by_figi
+    from hunch.research import keywords_for
+    from hunch.research.sources import collect_evidence, recent_news
+
+    try:
+        instruments = instruments_by_figi(ensure_universe())
+        rows = [instruments[figi] for figi in target if figi in instruments]
+        evidence = collect_evidence(rows, keywords_for(take))
+    except Exception:  # pragma: no cover - sources are best effort
+        return []
+    since = utc_now() - dt.timedelta(days=REVIEW_NEWS_DAYS)
+    news = recent_news(evidence, since=since)
+    quant = [item for item in evidence if item.kind != "news"]
+    return news + quant
 
 
 def review_take(
@@ -222,19 +265,20 @@ def review_take(
     else:
         drift["basis"] = "account"
     performance = performance_summary(take)
+    evidence = review_evidence(take, target)
 
     selected = mode or research_mode()
     request_uids: list[str] = []
     if selected == "inference":
         try:
             check, request_uids = inference_thesis_check(
-                take, drift, performance, basket, review_date=date, client=client
+                take, drift, performance, basket, review_date=date, client=client, evidence=evidence
             )
         except ResearchError as exc:
-            check = heuristic_thesis_check(take, drift, performance)
+            check = heuristic_thesis_check(take, drift, performance, evidence)
             check["fallback"] = str(exc)
     else:
-        check = heuristic_thesis_check(take, drift, performance)
+        check = heuristic_thesis_check(take, drift, performance, evidence)
 
     outcome = "hold"
     proposal_uid: uuid.UUID | None = None

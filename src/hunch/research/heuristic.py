@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Sequence
+from typing import Any
 
 from hunch.instruments import HunchInstrument
 from hunch.research.models import CandidateInstrument, ResearchBrief, ResearchOutput
@@ -140,7 +141,9 @@ def _role_for(instrument: HunchInstrument, score: float, matched: set[str]) -> s
     return "pure_play" if score >= 4 else "enabler"
 
 
-def heuristic_research(take: Take, instruments: Sequence[HunchInstrument]) -> ResearchOutput:
+def heuristic_research(
+    take: Take, instruments: Sequence[HunchInstrument], *, evidence: Sequence[Any] = ()
+) -> ResearchOutput:
     text = f"{take.title}. {take.thesis_text}"
     themes = thesis_themes(text)
     brief = ResearchBrief(
@@ -161,12 +164,16 @@ def heuristic_research(take: Take, instruments: Sequence[HunchInstrument]) -> Re
     scored.sort(key=lambda item: (-item[0], item[1].ticker))
     top = scored[:20]
     best = top[0][0] if top else 1.0
+    by_figi: dict[str, list[Any]] = {}
+    for item in evidence:
+        by_figi.setdefault(item.figi, []).append(item)
     candidates = [
         CandidateInstrument(
             ticker=instrument.ticker,
             role=_role_for(instrument, score, matched),  # type: ignore[arg-type]
             case=f"Matches the thesis on {', '.join(sorted(matched)) or instrument.sector}.",
             conviction=round(min(1.0, score / best), 3),
+            citations=[item.id for item in by_figi.get(instrument.figi, [])],
         )
         for score, instrument, matched in top
     ]
@@ -183,15 +190,31 @@ def heuristic_research(take: Take, instruments: Sequence[HunchInstrument]) -> Re
                         conviction=0.3,
                     )
                 )
+    chosen = {c.ticker for c in candidates}
+    cited = [item for item in evidence if item.ticker in chosen]
     rationale = (
         f"## {take.title}\n\n{take.thesis_text}\n\n"
         f"**Themes matched:** {', '.join(brief.keywords) or 'none'}.\n\n"
         "**Basket:** "
-        + "; ".join(f"{c.ticker} ({c.role.replace('_', ' ')})" for c in candidates)
-        + ".\n\n*Built by the deterministic theme matcher; no model was consulted.*"
+        + "; ".join(
+            f"{c.ticker} ({c.role.replace('_', ' ')})"
+            + (f" [{', '.join(c.citations)}]" if c.citations else "")
+            for c in candidates
+        )
+        + ".\n\n"
+        + (
+            "**Evidence:**\n" + "\n".join(f"- {item.line()}" for item in cited) + "\n\n"
+            if cited
+            else "**Evidence:** no external source is configured; only the universe tags were used.\n\n"
+        )
+        + "*Built by the deterministic theme matcher; no model was consulted.*"
     )
     return ResearchOutput(
-        mode="heuristic", brief=brief, candidates=candidates, rationale_md=rationale
+        mode="heuristic",
+        brief=brief,
+        candidates=candidates,
+        rationale_md=rationale,
+        evidence=list(evidence),
     )
 
 
