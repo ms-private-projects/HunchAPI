@@ -48,7 +48,7 @@ def build_take_resource(
 ) -> BuildResponse:
     take = owned_take(user.uid, take_uid)
     started: StartedBuild = start_take_build(
-        take.uid, research_mode=research_mode, created_by=f"user:{user.uid}"
+        take.uid, research_mode=research_mode, created_by="user"
     )
     if started.execution == "inline" and started.result is not None:
         return BuildResponse(

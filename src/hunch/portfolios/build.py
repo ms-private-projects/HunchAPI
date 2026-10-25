@@ -15,7 +15,7 @@ import pandas as pd
 
 from hunch.instruments import HunchInstrument
 from hunch.instruments.services import ensure_universe, instruments_by_figi
-from hunch.market_data import ensure_daily_bars, last_completed_session_close
+from hunch.market_data import ensure_daily_bars, last_completed_session_close, latest_closes
 from hunch.portfolios import HunchPortfolio
 from hunch.portfolios.graph import (
     PortfolioGraph,
@@ -223,16 +223,19 @@ def take_weights(take: Take) -> list[dict[str, Any]]:
     """Latest portfolio weights with instrument identity, heaviest first."""
     rows = portfolio_latest_weights(hunch_portfolio_identifier(take.uid))
     instruments = instruments_by_figi(ensure_universe())
+    figis = [str(row["asset_identifier"]) for row in rows]
+    closes = latest_closes(figis) if figis else {}
     out = []
     for row in rows:
         instrument = instruments.get(str(row["asset_identifier"]))
+        close = closes.get(str(row["asset_identifier"]))
         out.append(
             {
                 "figi": row["asset_identifier"],
                 "ticker": instrument.ticker if instrument else None,
                 "name": instrument.name if instrument else None,
                 "weight": float(row["weight"]),
-                "price": row.get("price_current"),
+                "price": row.get("price_current") or (close[1] if close else None),
                 "time_index": row["time_index"],
             }
         )
