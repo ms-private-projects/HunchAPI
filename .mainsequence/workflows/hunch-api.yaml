@@ -43,7 +43,11 @@ resources:
       value: job
     # Venue connectors: `live` calls the Alpaca and IBKR connector releases over HTTP at these
     # URLs (set them to the releases' base URLs before the first push); `simulated` keeps a
-    # paper venue inside Hunch and is for local development only.
+    # paper venue inside Hunch and is for local development only. Calling another repository's
+    # release also needs `access.branches: [{repository: <connector repository>, policy: user}]`
+    # on this API and on the hunch-daily-review and hunch-execution-sync Jobs (plan §3.3); add
+    # them when the connector releases exist, with HUNCH_<VENUE>_CONNECTOR_RELEASE_UID if the
+    # gateway routes by release UID.
     - name: HUNCH_CONNECTOR_MODE
       value: live
     - name: HUNCH_ALPACA_CONNECTOR_URL
