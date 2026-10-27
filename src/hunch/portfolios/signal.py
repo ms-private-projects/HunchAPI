@@ -42,8 +42,11 @@ class HunchBasketSignal(SignalWeights):
 
 def basket_signal(take_uid: uuid.UUID | str, universe: Sequence[str]) -> HunchBasketSignal:
     """The take's signal node, aware of every instrument the take ever held."""
+    from hunch.series import portfolio_series
+
     signal = HunchBasketSignal.from_signal_configuration(
-        HunchBasketSignalConfig(basket_id=str(uuid.UUID(str(take_uid))))
+        HunchBasketSignalConfig(basket_id=str(uuid.UUID(str(take_uid)))),
+        output_table=portfolio_series()["signal_weights"],
     )
     signal._universe = sorted(dict.fromkeys(universe))
     return signal

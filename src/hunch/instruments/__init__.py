@@ -119,7 +119,7 @@ class HunchInstrument(MarketsMetaTableRow):
     """Typed row-operation wrapper for ``HunchInstrumentTable``."""
 
     __table__: ClassVar[type[HunchInstrumentTable]] = HunchInstrumentTable
-    __required_tables__: ClassVar[list[type[Any]]] = [AssetTable, HunchInstrumentTable]
+    __required_tables__: ClassVar[list[type[Any]]] = [HunchInstrumentTable]
     __upsert_keys__: ClassVar[tuple[str, ...]] = ("figi",)
 
     uid: str = Field(validation_alias=AliasChoices("uid", "figi"))

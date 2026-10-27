@@ -1,7 +1,8 @@
 # 0002. Hunch On ms-markets 3.x And The Markets API Boundary
 
 - **Status:** Analysis, 2026-10-27. Supersedes the 2026-10-26 draft written against the 2.2.13
-  development branch. No Hunch code changed.
+  development branch. U1 shipped (ADR 0005); U2 is ADR 0006. There is no ms-markets 4: the 4.0
+  and 4.1 rows below describe unmerged branches that will not ship.
 - **Inputs:** ms-markets 3.0.1 (PyPI, `main` at `c7cf0a1`) and the `development` head `d629e77`
   (3.0.2), the 3.0 upgrade guide, ADR 0047 (application boundary) and ADR 0048 (time-index rename),
   the `msm.client` knowledge page, the changelog, and the unmerged branches
@@ -191,8 +192,9 @@ today, so person-level authorization of registry writes stays inside Hunch.
 6. Revoke every Hunch grant on `mainsequence.markets` in both Environments, and grant the Markets
    workload `data_viewer` on Hunch's instances.
 
-**U3: follow the column releases.** Move to 3.1 when Markets releases it and to 4.0 before Markets
-ships 4.1. With the scan clean after U1, these are dependency bumps.
+**U3: follow the column releases.** Move to 3.1 when Markets releases it. With the scan clean
+after U1, it is a dependency bump. Update 2026-10-27: there is no ms-markets 4, so the 4.0 and 4.1
+steps above do not apply and Hunch stays on `>=3,<4`.
 
 ## 7. Decisions to make
 

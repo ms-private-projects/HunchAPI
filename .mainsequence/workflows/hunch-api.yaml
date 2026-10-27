@@ -5,15 +5,20 @@ resources:
 # match ^[a-z][a-z0-9_]{0,39}$. The Hunch site names this release by this key.
 - key: hunch
   kind: fastapi
-  # The API's own workload User. Every MetaTable is read through the MetaTables API on the
-  # MetaTables repository's branch; `user` on the Agent lets the project configuration find and
-  # return it to the site (site_agent.py). MetaTables roles (`editor` for hunch-migrate,
-  # `data_writer` / `data_viewer` for the API and the other Jobs) are granted by the namespace
-  # owners, not declared here: docs/operations/hosted-deploy.md, "MetaTables roles".
+  # The API's own workload User. Hunch's own tables are read through the MetaTables API on the
+  # MetaTables repository's branch; every Markets registry (assets, calendars, accounts,
+  # portfolios, signals, funds) through the Markets API, which `reader` on the MainSequenceMarkets
+  # branch lets the workload discover (ADR 0006; every Job that starts the Markets engine carries
+  # the same grant). `user` on the Agent lets the project configuration find and return it to the
+  # site (site_agent.py). MetaTables roles (`editor` for hunch-migrate, `data_writer` for the API
+  # and the other Jobs, all on the `hunch` namespace only) are granted by the namespace owners, not
+  # declared here: docs/operations/hosted-deploy.md, "MetaTables roles".
   access:
     branch: editor
     branches:
     - repository: MetaTables
+      policy: reader
+    - repository: MainSequenceMarkets
       policy: reader
     resources:
     - key: hunch-agent
@@ -124,6 +129,8 @@ resources:
     branches:
     - repository: MetaTables
       policy: reader
+    - repository: MainSequenceMarkets
+      policy: reader
     model_providers:
     # Research runs through recorded inference with this credential (custom_id as configured in
     # the Environment; the development backend has no recorded-inference adapter for it yet).
@@ -152,6 +159,8 @@ resources:
     branches:
     - repository: MetaTables
       policy: reader
+    - repository: MainSequenceMarkets
+      policy: reader
   spec:
     name: Hunch Portfolio Refresh
     description: Bring prices up to date and extend the values of one take (--take-uid) or of every built take (--scheduled).
@@ -170,6 +179,8 @@ resources:
   access:
     branches:
     - repository: MetaTables
+      policy: reader
+    - repository: MainSequenceMarkets
       policy: reader
     resources:
     - key: hunch-portfolio-refresh
@@ -197,6 +208,8 @@ resources:
     branches:
     - repository: MetaTables
       policy: reader
+    - repository: MainSequenceMarkets
+      policy: reader
     model_providers:
     - provider: openai-codex
       custom_id: openai-codex
@@ -222,6 +235,8 @@ resources:
   access:
     branches:
     - repository: MetaTables
+      policy: reader
+    - repository: MainSequenceMarkets
       policy: reader
     resources:
     - key: hunch-daily-review
@@ -252,6 +267,8 @@ resources:
     branches:
     - repository: MetaTables
       policy: reader
+    - repository: MainSequenceMarkets
+      policy: reader
   spec:
     name: Hunch Execution Sync
     description: Pull order states from the venue connectors, book fills into the takes' funds and expire stale proposals.
@@ -275,6 +292,8 @@ resources:
     branches:
     - repository: MetaTables
       policy: reader
+    - repository: MainSequenceMarkets
+      policy: reader
   spec:
     name: Hunch Leaderboard
     description: Snapshot the ranking of published takes after the refresh.
@@ -297,6 +316,8 @@ resources:
   access:
     branches:
     - repository: MetaTables
+      policy: reader
+    - repository: MainSequenceMarkets
       policy: reader
   spec:
     name: Hunch Email Digest

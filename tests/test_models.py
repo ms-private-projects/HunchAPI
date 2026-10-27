@@ -25,7 +25,10 @@ def _foreign_keys(table) -> dict[str, tuple[str, str | None]]:
 
 
 def test_project_tables_live_in_the_hunch_app_segment() -> None:
-    assert PROJECT_TABLE_NAMES == {
+    from hunch.series import project_series_models
+
+    product = PROJECT_TABLE_NAMES - {model.__table__.name for model in project_series_models()}
+    assert product == {
         "hunch__user_profile",
         "hunch__user_profile_account",
         "hunch__instrument",
@@ -40,7 +43,8 @@ def test_project_tables_live_in_the_hunch_app_segment() -> None:
     }
     for model in all_project_metatable_models():
         assert model.__table__.info["markets_storage_app"] == "hunch"
-        assert model.__table__.info["namespace"] == "mainsequence.markets"
+        # ADR 0006: Hunch tables are catalogued in Hunch's own namespace.
+        assert model.__table__.info["namespace"] == "hunch"
 
 
 def test_user_profile_is_keyed_by_the_main_sequence_user_and_is_not_an_account() -> None:

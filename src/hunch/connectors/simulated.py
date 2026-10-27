@@ -1,10 +1,11 @@
 """A simulated venue for local development and tests.
 
 It behaves like a connector that fills every market order at the last stored close with no
-commission, and it keeps the same ms-markets records a real connector keeps: an ``Account`` row
-(paper, owner recorded in ``metadata_json``), ``AccountHoldingsSet`` + ``AccountHoldingsTS``
-snapshots, an ``OrderManager`` batch with ``OrdersTS`` and ``TradesTS`` rows per submission.
-Positions are held on Hunch's canonical FIGI assets, so no venue asset mapping is needed.
+commission, and it keeps its records the way a connector does under the Markets API boundary
+(ADR 0006): an ``Account`` row and an ``AccountHoldingsSet`` per snapshot through the Markets API
+(paper, owner recorded in ``metadata_json``), with the holdings rows and the fills in the
+venue's own instances (``hunch.series.simulated_venue_storage``). Positions are held on Hunch's
+canonical FIGI assets, so no venue asset mapping is needed.
 """
 
 from __future__ import annotations
@@ -73,11 +74,15 @@ class SimulatedConnector:
 
         ensure_cash_asset()
         identifier = self._identifier(owner_user_uid)
+        from hunch.series import series_table_uid, simulated_venue_storage
+
         account = Account.upsert(
             unique_identifier=identifier,
             account_name=account_name or f"Simulated {self.venue} paper account",
             is_paper=True,
             account_is_active=True,
+            # Like a connector's account: its holdings rows live in the venue's own instance.
+            holdings_storage_table_uid=series_table_uid(simulated_venue_storage()["holdings"]),
             metadata_json={
                 "simulated": True,
                 "venue": self.venue,
@@ -190,11 +195,7 @@ class SimulatedConnector:
     def submit_orders(
         self, account_uid: str, batch_id: str, legs: list[OrderLeg]
     ) -> SubmissionResult:
-        from hunch.funding.ledger import (
-            create_order_batch,
-            write_account_snapshot,
-            write_orders_and_trades,
-        )
+        from hunch.funding.ledger import write_account_snapshot, write_simulated_fills
         from hunch.market_data import latest_closes
         from msm.api.accounts import Account
 
@@ -243,13 +244,12 @@ class SimulatedConnector:
                 "The batch would sell more than the account holds.", code="short_sale"
             )
 
-        create_order_batch(batch_id, account.uid, now, status="filled")
-        write_orders_and_trades(
+        write_simulated_fills(
             account_identifier=account.unique_identifier,
             batch_id=batch_id,
             legs=legs,
             fills=fills,
-            order_time=now,
+            trade_time=now,
         )
         new_positions = [
             {
