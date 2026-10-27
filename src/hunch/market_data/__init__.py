@@ -1,6 +1,6 @@
 """Daily prices for every Hunch instrument, in ms-markets' `ExternalPricesTS`.
 
-One asset-indexed DataNode, `HunchDailyBars`, writes daily OHLCV bars stamped at the session close
+One asset-indexed updater, `HunchDailyBars`, writes daily OHLCV bars stamped at the session close
 of the XNYS calendar for the whole Hunch universe. Its identity is constant: the MetaTables
 updater hashes constructor arguments into the node identity, so the node takes none, reads its
 asset list from the instrument universe, and receives its options after construction. Where the
@@ -25,11 +25,11 @@ from hunch.settings import (
     TRADING_CALENDAR_VALID_FROM,
     bars_provider,
 )
-from msm.data_nodes.assets.asset_indexed import (
-    AssetIndexedDataNode,
-    AssetIndexedDataNodeConfiguration,
+from msm.time_index.assets.asset_indexed import (
+    AssetIndexedUpdater,
+    AssetIndexedUpdaterConfiguration,
 )
-from msm_portfolios.data_nodes.prices.storage import ExternalPricesStorage
+from msm_portfolios.time_index.prices.storage import ExternalPricesStorage
 
 UTC = dt.timezone.utc
 BARS_START = dt.date.fromisoformat(TRADING_CALENDAR_VALID_FROM)
@@ -139,7 +139,7 @@ def _normalize_bars(frame: pd.DataFrame) -> pd.DataFrame:
     return frame.set_index(["time_index", "asset_identifier"]).sort_index()
 
 
-class HunchDailyBars(AssetIndexedDataNode):
+class HunchDailyBars(AssetIndexedUpdater):
     """Daily bars of the whole Hunch universe, written at the XNYS session close.
 
     Construct it without arguments (the identity must stay constant) and call ``configure`` to
@@ -154,7 +154,7 @@ class HunchDailyBars(AssetIndexedDataNode):
         self._provider: BarsProvider | None = None
         self._end: dt.date | None = None
         super().__init__(
-            config=AssetIndexedDataNodeConfiguration(), output_table=ExternalPricesStorage
+            config=AssetIndexedUpdaterConfiguration(), output_table=ExternalPricesStorage
         )
 
     def configure(

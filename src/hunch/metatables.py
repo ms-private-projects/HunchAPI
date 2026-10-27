@@ -7,7 +7,7 @@ from the ms-markets base mixins unchanged, exactly as the Alpaca and IBKR connec
 
 Use:
 - ``HunchMarketsMetaTableMixin`` for regular (non-time-indexed) MetaTables.
-- ``HunchMarketsTimeIndexMetaTableMixin`` for storage-first time-indexed DataNode storage classes.
+- ``HunchMarketsTimeIndexMetaTableMixin`` for storage-first time-index storage classes.
 - ``ProjectStorageNameMixin`` (placed *before* the Markets mixin in the base list) to give a short
   explicit physical ``__tablename__`` from ``__project_storage_concept__``.
 """
