@@ -15,9 +15,12 @@ dependencies = [
   # Main Sequence SDK 9 with the MCP extra: request identity, `install_mcp`, skills publishing.
   "mainsequence[mcp]>=9.0.30,<10",
   # The MetaTables client (`metatables`): migrations provider and governed table access.
-  "mainsequence-metatable>=0.1.51,<0.2",
-  # Every market primitive comes from ms-markets; the portfolios extra brings the calendars.
-  "ms-markets[portfolios]>=2.2.11,<3",
+  "mainsequence-metatable>=0.1.57,<0.2",
+  # Every market primitive comes from ms-markets. 3.x carries the ADR 0048 names (`time_index`,
+  # `*Updater`); keep the rename scan in the validation clean so 4.0 stays a dependency bump.
+  "ms-markets[portfolios]>=3.0.1,<4",
+  # Hunch reads exchange sessions itself (`hunch.market_data`), so it declares the calendars too.
+  "pandas-market-calendars>=5.4.0",
   # Runtime of the Hunch Agent (`api/agent/main.py`); the platform runs it from this image.
   "ms-tau-sdk>=2.0.23,<3",
   "jsonschema>=4.23",

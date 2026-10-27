@@ -1,7 +1,7 @@
 """ms-markets runtime bootstrap for Hunch.
 
 Storage-first ms-markets requires one ``start_engine(...)`` per process **before** any
-MetaTable-backed row, repository, service or DataNode operation. It attaches the runtime to the
+MetaTable-backed row, repository, service or time-index updater operation. It attaches the runtime to the
 already-migrated MetaTables; it never creates schema (the migration providers do). A process may
 attach only one model set, so every entry point attaches the complete set below.
 
@@ -47,17 +47,9 @@ def application_runtime_models() -> list[type[Any]]:
     and virtual funds, the execution ledger, and the Hunch tables. ``start_engine`` re-orders by
     foreign-key dependency and auto-includes referenced built-in tables.
     """
-    from msm_pricing.data_nodes.pricing_details.storage import AssetPricingDetailsStorage
     from msm_pricing.models.pricing_details import AssetCurrentPricingDetailsTable
+    from msm_pricing.time_index.pricing_details.storage import AssetPricingDetailsStorage
 
-    from msm.data_nodes.accounts.storage import AccountHoldingsStorage
-    from msm.data_nodes.accounts.virtual_funds.storage import VirtualFundHoldingsStorage
-    from msm.data_nodes.assets.storage import AssetSnapshotsStorage
-    from msm.data_nodes.execution.storage import (
-        OrderEventsStorage,
-        OrdersStorage,
-        TradesStorage,
-    )
     from msm.models import (
         AssetCategoryMembershipTable,
         AssetCategoryTable,
@@ -71,6 +63,14 @@ def application_runtime_models() -> list[type[Any]]:
     from msm.models.assets.currency_spot import CurrencySpotAssetDetailsTable
     from msm.models.derivatives import FutureAssetDetailsTable
     from msm.models.index_formulas import IndexFormulaInputTable
+    from msm.time_index.accounts.storage import AccountHoldingsStorage
+    from msm.time_index.accounts.virtual_funds.storage import VirtualFundHoldingsStorage
+    from msm.time_index.assets.storage import AssetSnapshotsStorage
+    from msm.time_index.execution.storage import (
+        OrderEventsStorage,
+        OrdersStorage,
+        TradesStorage,
+    )
     from msm_portfolios.bootstrap import resolve_portfolio_models
 
     return [

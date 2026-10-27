@@ -156,7 +156,7 @@ mainsequence==9.0.32
     #   hunchapi
     #   mainsequence-metatable
     #   ms-markets
-mainsequence-metatable==0.1.56
+mainsequence-metatable==0.1.59
     # via
     #   hunchapi
     #   ms-markets
@@ -185,7 +185,7 @@ more-itertools==11.2.1
     # via
     #   jaraco-classes
     #   jaraco-functools
-ms-markets==2.2.12
+ms-markets==3.0.2
     # via hunchapi
 ms-tau-sdk==2.0.26
     # via hunchapi
@@ -259,7 +259,9 @@ pandas==3.1.0
     #   ms-markets
     #   pandas-market-calendars
 pandas-market-calendars==5.5.0
-    # via ms-markets
+    # via
+    #   hunchapi
+    #   ms-markets
 pillow==12.3.0
     # via
     #   fastembed

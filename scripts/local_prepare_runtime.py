@@ -33,7 +33,7 @@ def main() -> int:
         print("The local runtime has no data source; initialize it first.", file=sys.stderr)
         return 2
 
-    from msm_portfolios.data_nodes.prices.storage import InterpolatedPricesStorage
+    from msm_portfolios.time_index.prices.storage import InterpolatedPricesStorage
 
     orphans = [
         (

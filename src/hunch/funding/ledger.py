@@ -43,8 +43,8 @@ def write_account_snapshot(
 ) -> uuid.UUID:
     """One ``AccountHoldingsSet`` plus its ``AccountHoldingsTS`` rows (positive quantities)."""
     from msm.api.accounts import AccountHoldingsSet
-    from msm.data_nodes.accounts import AccountHoldings
     from msm.services.holdings import build_account_holdings_frame
+    from msm.time_index.accounts import AccountHoldings
 
     holdings_set = AccountHoldingsSet.upsert(account_uid=str(account_uid), time_index=time_index)
     if positions:
@@ -79,7 +79,7 @@ def _holding_from_row(row: Any, asset_identifier: str) -> VenueHolding:
 def account_latest_snapshot(account_uid: uuid.UUID | str) -> HoldingsSnapshot | None:
     """The newest holdings set of an account, read back from its own rows (never stale)."""
     from msm.api.accounts import AccountHoldingsSet
-    from msm.data_nodes.accounts import AccountHoldings
+    from msm.time_index.accounts import AccountHoldings
 
     sets = AccountHoldingsSet.filter(account_uid=str(account_uid), limit=5000)
     if not sets:
@@ -137,7 +137,7 @@ def write_fund_holdings(
 ) -> uuid.UUID | None:
     """The fund's slice of the account after a fill: positions and its cash, positive quantities."""
     from msm.api.virtual_funds import VirtualFundHoldingsSet
-    from msm.data_nodes.accounts.virtual_funds import VirtualFundHoldings
+    from msm.time_index.accounts.virtual_funds import VirtualFundHoldings
 
     holdings_set = VirtualFundHoldingsSet.upsert(
         virtual_fund_uid=str(virtual_fund_uid),
@@ -175,7 +175,7 @@ def fund_latest_holdings(
 ) -> tuple[dt.datetime | None, dict[str, float]]:
     """The fund's latest allocation as {asset_identifier: signed quantity} and its time."""
     from msm.api.virtual_funds import VirtualFundHoldingsSet
-    from msm.data_nodes.accounts.virtual_funds import VirtualFundHoldings
+    from msm.time_index.accounts.virtual_funds import VirtualFundHoldings
 
     sets = VirtualFundHoldingsSet.filter(virtual_fund_uid=str(virtual_fund_uid), limit=5000)
     if not sets:
@@ -211,7 +211,7 @@ def publish_account_target(
 ) -> dict[str, str]:
     """Record the intent in ms-markets: a portfolio target with a constant notional exposure."""
     from msm.api.accounts import AccountAllocationModel, AccountTargetAllocation, PositionSet
-    from msm.data_nodes.accounts import TargetPositions
+    from msm.time_index.accounts import TargetPositions
 
     model = AccountAllocationModel.upsert(
         allocation_model_name=ALLOCATION_MODEL_NAME,
@@ -282,7 +282,7 @@ def write_orders_and_trades(
     order_time: dt.datetime,
 ) -> None:
     """One ``OrdersTS`` row per leg and one ``TradesTS`` row per fill (side +1 buy, -1 sell)."""
-    from msm.data_nodes.execution import Orders, Trades
+    from msm.time_index.execution import Orders, Trades
 
     by_id = {state.client_order_id: state for state in fills}
     order_rows, trade_rows = [], []
@@ -355,7 +355,7 @@ def write_orders_and_trades(
 
 
 def read_batch_orders(account_identifier: str, batch_id: str) -> list[OrderState]:
-    from msm.data_nodes.execution import Orders
+    from msm.time_index.execution import Orders
 
     node = Orders(config=Orders.default_config())
     frame = node.get_df_between_dates(

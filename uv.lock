@@ -501,6 +501,7 @@ dependencies = [
     { name = "mainsequence-metatable" },
     { name = "ms-markets", extra = ["portfolios"] },
     { name = "ms-tau-sdk" },
+    { name = "pandas-market-calendars" },
     { name = "pydantic" },
     { name = "uvicorn" },
 ]
@@ -520,9 +521,10 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.135.3" },
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "mainsequence", extras = ["mcp"], specifier = ">=9.0.30,<10" },
-    { name = "mainsequence-metatable", specifier = ">=0.1.51,<0.2" },
-    { name = "ms-markets", extras = ["portfolios"], specifier = ">=2.2.11,<3" },
+    { name = "mainsequence-metatable", specifier = ">=0.1.57,<0.2" },
+    { name = "ms-markets", extras = ["portfolios"], specifier = ">=3.0.1,<4" },
     { name = "ms-tau-sdk", specifier = ">=2.0.23,<3" },
+    { name = "pandas-market-calendars", specifier = ">=5.4.0" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "uvicorn", specifier = ">=0.52.4,<0.53" },
 ]
@@ -721,7 +723,7 @@ mcp = [
 
 [[package]]
 name = "mainsequence-metatable"
-version = "0.1.56"
+version = "0.1.59"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alembic" },
@@ -754,9 +756,9 @@ dependencies = [
     { name = "urllib3" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/24/df/96ec159315cfb52adb91a1bf079f7f2adf80fec89380a8094310a077f340/mainsequence_metatable-0.1.56.tar.gz", hash = "sha256:08f411e0edaf49a04d631a3b0bbdd06dbaf2dee4cbe513f592e45a39bce2e3c0", size = 1314635, upload-time = "2026-10-24T21:17:26.992Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/48/3b/1e7f3aaae9d7139a6d3ffe98a86d31d3e5cdf7f1c4615e5d1e1892935fb0/mainsequence_metatable-0.1.59.tar.gz", hash = "sha256:31b81c50d87e75176af803a5ca266e4c9ed575f805ff27c27bd5a6a3bd791769", size = 1324248, upload-time = "2026-10-27T19:06:23.095Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2e/db/c149aede9639bacc429d4c84682b44cf1f3efc189dafa0597302322740c8/mainsequence_metatable-0.1.56-py3-none-any.whl", hash = "sha256:6e48736c1f38f2dbec39714bd122dbcb1e6cc604a9c27214f6e95d96c8e85c46", size = 2518911, upload-time = "2026-10-24T21:17:24.91Z" },
+    { url = "https://files.pythonhosted.org/packages/68/5f/a0f389eb25998385ac5c2a4ffbbd1effd9db235ed6cbff1968d0b2af3d36/mainsequence_metatable-0.1.59-py3-none-any.whl", hash = "sha256:f3e3a3d8e0797131f43338684db54f996f613d75529dde457efd125c0a328f92", size = 2520515, upload-time = "2026-10-27T19:06:20.588Z" },
 ]
 
 [[package]]
@@ -917,7 +919,7 @@ wheels = [
 
 [[package]]
 name = "ms-markets"
-version = "2.2.12"
+version = "3.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alembic" },
@@ -937,9 +939,9 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/81/4d/956cebfa570248ae5418bdc904f7ce8817ac4329e732a5265f05a477839b/ms_markets-2.2.12.tar.gz", hash = "sha256:0bb5b5bfcf326157272ee081aa6e2630328f291b996e4985c78c27a22c6696f3", size = 2414284, upload-time = "2026-10-22T20:39:23.891Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/70/a0bcfe23d625c12825b950918e707464a71bd7eb5dc41a066c4eaf4dec6c/ms_markets-3.0.2.tar.gz", hash = "sha256:6e54bfd6ef0a5e5670e5530c57f803bb805edd0daee56978acde463ec9ed0fee", size = 2576690, upload-time = "2026-10-27T20:07:06.448Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/7f/32d0e96381844d978da798fd1238eb5ca26b7f0e5e06380d93b405850dc4/ms_markets-2.2.12-py3-none-any.whl", hash = "sha256:388c6a6b2803656ada16c0f590d35e4dea5289bc7d54cfdf64321ee7c248441a", size = 718074, upload-time = "2026-10-22T20:39:21.807Z" },
+    { url = "https://files.pythonhosted.org/packages/60/5b/50ed2387960788a0440f9747d995fed9a9a4e466330d97217c8a2b609e54/ms_markets-3.0.2-py3-none-any.whl", hash = "sha256:261f5c1ea090d78c29ecefcb0b43301f5a94ac1dbbaff5bf8da0235b9351ad67", size = 805515, upload-time = "2026-10-27T20:07:03.929Z" },
 ]
 
 [package.optional-dependencies]

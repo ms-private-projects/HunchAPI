@@ -38,8 +38,8 @@ Repository rules:
 - Money moves only through `HunchRebalanceProposal` rows: fund, rebalance and withdraw create a
   proposal; approval mode needs the person's decision, autopilot needs `autopilot_check` to pass.
   Ownership of a venue account is decided by `HunchUserProfileAccount` alone.
-- The ms-markets shims in `hunch.compat` are documented in ADR 0002; remove each when ms-markets
-  fixes the call site, never add behaviour there.
+- The ms-markets shims in `hunch.compat` are documented in ADRs 0002 and 0005; remove each when
+  ms-markets fixes the call site, never add behaviour there.
 
 FastAPI surface:
 
@@ -70,8 +70,9 @@ Project-to-agent boundary:
   `DELETE <uid>`; long work submits Jobs and returns JobRun UIDs; reads run in parallel and
   mutations in sequence; no tool takes credentials, UIDs of persons or an Environment selector.
 
-Validate with `.venv/bin/python -m pytest -q`, `.venv/bin/ruff check api src tests` and
-`.venv/bin/ruff format --check api src tests`.
+Validate with `.venv/bin/python -m pytest -q`, `.venv/bin/ruff check api src tests`,
+`.venv/bin/ruff format --check api src tests` and `.venv/bin/msm rename-preflight scan src tests api
+scripts` (ms-markets 3.x names only; ADR 0005).
 
 ## The Hunch Agent
 

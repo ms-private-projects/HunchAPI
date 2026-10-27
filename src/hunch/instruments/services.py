@@ -53,7 +53,7 @@ def ensure_cash_asset() -> Asset:
 
 def seed_universe(*, snapshot_time: dt.datetime | None = None) -> list[HunchInstrument]:
     """Register every fixture instrument that is missing and return the whole universe."""
-    from msm.data_nodes.assets import AssetSnapshot
+    from msm.time_index.assets import AssetSnapshot
 
     AssetType.upsert(**C.ASSET_TYPE_EQUITY_DEFINITION.as_payload())
     ensure_cash_asset()

@@ -16,7 +16,7 @@ from collections.abc import Mapping, Sequence
 import pandas as pd
 
 from msm_portfolios.configuration import PortfolioConfigBaseModel
-from msm_portfolios.data_nodes import ASSET_IDENTIFIER, SignalWeights
+from msm_portfolios.time_index import ASSET_IDENTIFIER, SignalWeights
 
 
 class HunchBasketSignalConfig(PortfolioConfigBaseModel):

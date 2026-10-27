@@ -33,14 +33,14 @@ from msm_portfolios.configuration import (
     PortfolioMarketsConfig,
     ValuationAlignmentPolicy,
 )
-from msm_portfolios.data_nodes import (
-    PortfolioCalendarEvents,
-    PortfolioCalendarEventsConfiguration,
-    PortfoliosDataNode,
-)
-from msm_portfolios.data_nodes.prices.storage import ExternalPricesStorage
 from msm_portfolios.rebalance_strategy import CalendarEventSignal
 from msm_portfolios.services.portfolio_reads import latest_portfolio_weights, portfolio_values
+from msm_portfolios.time_index import (
+    PortfolioCalendarEvents,
+    PortfolioCalendarEventsConfiguration,
+    PortfoliosUpdater,
+)
+from msm_portfolios.time_index.prices.storage import ExternalPricesStorage
 
 UTC = dt.timezone.utc
 # Equities trade on business days; a bar a few days old is still the last valuation.
@@ -128,7 +128,7 @@ class PortfolioGraph:
                 front_end_details=FrontEndDetails(description=description) if description else None,
             ),
         )
-        self.values = PortfoliosDataNode(
+        self.values = PortfoliosUpdater(
             portfolio_configuration=configuration,
             portfolio_resolver=_FixedPortfolioResolver(portfolio),
             portfolio_description=description,
