@@ -42,7 +42,7 @@ src/hunch/               # the installable package
   migrations/            # `hunch.migrations:migration` provider, schema gate, revisions 0001-0003
   api/app/               # routers, services, schemas, identity, errors, capabilities, mcp_server
   agent_tools.py         # the tool catalog the API serves at /mcp
-  compat.py              # shims for ms-markets 2.2.12 (see ADR 0002)
+  compat.py              # shims for ms-markets 2.2.12-3.0.2 (see ADRs 0002 and 0005)
   runtime.py             # the single msm.start_engine per process
 src/jobs/                # Job launchers run by path (not in the wheel)
 scripts/dev_stack.sh     # local stack: MetaTables, loopback API, local Tau, the site
@@ -74,6 +74,7 @@ uv export --locked --no-dev --no-hashes --format requirements-txt -o requirement
 .venv/bin/python -m pytest -q
 .venv/bin/ruff check api src tests
 .venv/bin/ruff format --check api src tests
+.venv/bin/msm rename-preflight scan src tests api scripts   # exits 1 on any pre-3.0 ms-markets name
 ```
 
 ## Run everything locally

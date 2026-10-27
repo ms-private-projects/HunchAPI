@@ -1,7 +1,9 @@
 """Compatibility shims for the installed ms-markets release, installed once per process.
 
-Each shim names the upstream behaviour it works around so it can be removed when ms-markets fixes
-it. None changes a contract; they only coerce arguments.
+Each shim names the upstream behaviour it works around and the releases it was checked against, so
+it can be removed when ms-markets fixes it. All three were re-checked on 3.0.2 (ADR 0048 names:
+`msm_portfolios.time_index`, `PortfoliosUpdater`). None changes a contract; they only coerce
+arguments or keep a new portfolio's starting point its own.
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ def _coerce_uuid(value: Any) -> Any:
 
 
 def _patch_calendar_session_search() -> None:
-    """ms-markets 2.2.12: `PersistedCalendarSchedule.schedule` passes `calendar_uid` as a string.
+    """ms-markets 2.2.12-3.0.2: `PersistedCalendarSchedule.schedule` passes `calendar_uid` as a str.
 
     On SQLite the compiled-SQL UUID bind processor expects a `uuid.UUID` and fails with
     `'str' object has no attribute 'hex'`; PostgreSQL accepts both. Coerce before compiling.
@@ -41,7 +43,7 @@ def _patch_calendar_session_search() -> None:
 
 
 def _patch_sqlite_uuid_binds() -> None:
-    """ms-markets 2.2.12 passes several UUIDs as strings (`str(row.uid)`) into compiled SQL.
+    """ms-markets 2.2.12-3.0.2 passes several UUIDs as strings (`str(row.uid)`) into compiled SQL.
 
     SQLAlchemy's non-native `Uuid` bind processor, used for SQLite, calls `.hex` on the value and
     fails on a string; PostgreSQL's native UUID accepts both. Coerce UUID strings for SQLite in
@@ -68,24 +70,24 @@ def _patch_sqlite_uuid_binds() -> None:
 
 
 def _patch_portfolio_progress_fallback() -> None:
-    """ms-markets 2.2.12: a portfolio's first run starts after the *table's* latest time index.
+    """ms-markets 2.2.12-3.0.2: a portfolio's first run starts after the *table's* latest time index.
 
-    The rebalance, weights and values nodes of every portfolio share one storage table. When the
-    update statistics carry per-portfolio progress and this portfolio has no entry yet, the nodes
+    The rebalance, weights and values updaters of every portfolio share one storage table. When the
+    update statistics carry per-portfolio progress and this portfolio has no entry yet, the updaters
     fall back to `max_time_index_value`, the latest row of any portfolio, so a portfolio created
     after another one skips every event up to that time and never gets a first rebalance. A missing
     entry in a populated progress map means "new portfolio": start from `OFFSET_START`.
     """
-    from msm_portfolios.data_nodes import portfolios as portfolio_nodes
-    from msm_portfolios.data_nodes.portfolios import rebalance, weights
+    from msm_portfolios.time_index import portfolios as portfolio_updaters
+    from msm_portfolios.time_index.portfolios import rebalance, weights
 
     targets = (
         (rebalance.PortfolioRebalance, "_latest_transition_time_index_value"),
         (weights.PortfolioWeights, "_latest_projection_time_index_value"),
-        (portfolio_nodes.PortfoliosDataNode, "_latest_portfolio_time_index_value"),
+        (portfolio_updaters.PortfoliosUpdater, "_latest_portfolio_time_index_value"),
     )
-    for node_class, method_name in targets:
-        original = getattr(node_class, method_name)
+    for updater_class, method_name in targets:
+        original = getattr(updater_class, method_name)
         if getattr(original, "_hunch_compat", False):
             continue
 
@@ -104,7 +106,7 @@ def _patch_portfolio_progress_fallback() -> None:
 
         patched._hunch_compat = True  # type: ignore[attr-defined]
         patched.__name__ = method_name
-        setattr(node_class, method_name, patched)
+        setattr(updater_class, method_name, patched)
 
 
 def install_compat_patches() -> None:
