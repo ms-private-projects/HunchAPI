@@ -79,9 +79,18 @@ needed five to six minutes to start because it attached all of them.
 | Before the first U2 deploy | `hunch` API and every Hunch Job | `data_writer` on `hunch` (they held `data_viewer`) |
 | After it | the Markets API workload | `data_viewer` on the three catalogued tables only (`hunch__portfoliosts__takes`, `hunch__portfolioweightsts__takes`, `hunch__signalweightsts__takes`), for catalog verification and reconcile; never on the namespace, which holds the profiles |
 | After it | every Hunch workload | revoke the roles on `mainsequence.markets` |
+| Before the first hosted build | `hunch` API, Hunch Take Build, Hunch Portfolio Refresh, Hunch Daily Review and Hunch Execution Sync | table-level `editor` on the ten series instances (`hunch__externalpricests__daily`, `hunch__signalweightsts__takes`, `hunch__portfoliosts__takes`, `hunch__portfolioweightsts__takes`, `hunch__portfoliorebalancestatets__takes`, `hunch__portfoliocalendareventsts__takes`, `hunch__targetpositionsts__takes`, `hunch__virtualfundholdingsts__takes`, `hunch__accountholdingsts__simulated`, `hunch__tradests__simulated`) |
 
 `hunch-migrate` keeps `editor` on `mainsequence.markets` for its first U2 run only: moving a table
 out of a namespace needs `tables.update` there.
+
+Registering, configuring and running an updater is `tables.operate_updaters` on its output table,
+which only `editor` holds; `data_writer` covers row writes, not updaters. A workload without it
+gets 404 "TimeIndexMetaTable not found." from `time-index-table-updates/get-or-create/`, which
+stopped the first hosted take build at the daily bars (development, 2026-10-28). `editor` is
+granted per series table, not on the namespace, so the profile, take and funding tables stay at
+`data_writer` and these workloads cannot create tables in `hunch`. The dispatchers, Hunch
+Leaderboard and Hunch Email Digest run no updater and keep `data_writer`.
 
 ## Upstream reports (ms-markets 3.0.2 and the 3.0.3 development branch)
 
@@ -101,6 +110,11 @@ out of a namespace needs `tables.update` there.
   a scaled-to-zero API takes minutes. Hunch builds its client with a longer discovery timeout.
 - The Markets client's 60 s request timeout is shorter than a snapshot publish on a cold
   Environment (85 s); the client reports a failure for a write that succeeded.
+- The hosted Markets API image installs `requirements.txt`, exported without extras, so it lacks
+  `pandas-market-calendars` (the `portfolios` extra) and `Calendar.create_from_pandas_calendar`
+  answers 500 (`ModuleNotFoundError`). Hunch builds the XNYS dates and sessions itself and
+  writes them with `Calendar.upsert` and `upsert_many`, extending the calendar's horizon last
+  (development, 2026-10-28).
 
 ## Consequences
 

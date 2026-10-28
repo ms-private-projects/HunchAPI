@@ -101,6 +101,7 @@ API, which the workflow's `MainSequenceMarkets` branch grant lets each workload 
 | --- | --- | --- |
 | `hunch-migrate` | `editor` (automatic) | `editor` until its first 0004 run has moved the tables, then none |
 | `hunch` API and every other Hunch Job, dispatchers included | `data_writer` | none |
+| `hunch` API, Hunch Take Build, Hunch Portfolio Refresh, Hunch Daily Review and Hunch Execution Sync | also `editor` on each of the ten series tables (below) | none |
 | the Markets API workload | `data_viewer` on `hunch__portfoliosts__takes`, `hunch__portfolioweightsts__takes` and `hunch__signalweightsts__takes` only (catalog reconcile) | owner side |
 | a person or a Team of people | `owner` | as before |
 
@@ -111,6 +112,16 @@ blocks the API and the Agent and, through them, the site build. Workload User UI
 (`GET /api/v1/jobs/?code_repository_branch_uid=<branch uid>`) and each release
 (`workload_user_uid`). A recreated Job or release gets a new workload User and needs its grant
 again. First granted in development on 2026-10-25.
+
+The workloads that run updaters also hold table-level `editor` on the ten series instances
+(`hunch__externalpricests__daily`, `hunch__signalweightsts__takes`, `hunch__portfoliosts__takes`,
+`hunch__portfolioweightsts__takes`, `hunch__portfoliorebalancestatets__takes`,
+`hunch__portfoliocalendareventsts__takes`, `hunch__targetpositionsts__takes`,
+`hunch__virtualfundholdingsts__takes`, `hunch__accountholdingsts__simulated`,
+`hunch__tradests__simulated`): registering and running an updater is `tables.operate_updaters`,
+which `data_writer` does not include. Without it a build fails with 404 "TimeIndexMetaTable not
+found." on `time-index-table-updates/get-or-create/` (ADR 0006). First granted in development on
+2026-10-28.
 
 ## Moving onto the Markets API boundary (revision 0004)
 
