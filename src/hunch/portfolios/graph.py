@@ -14,6 +14,8 @@ import uuid
 from collections.abc import Sequence
 from typing import Any
 
+import pandas_market_calendars as mcal
+
 from hunch.portfolios.signal import HunchBasketSignal
 from hunch.runtime import markets_runtime
 from hunch.series import daily_bars_storage, portfolio_series
@@ -25,7 +27,7 @@ from hunch.settings import (
     TRADING_CALENDAR_VALID_TO,
 )
 from metatables import TimeIndexTableRef
-from msm.api.calendars import Calendar
+from msm.api.calendars import Calendar, CalendarDate, CalendarSession, CalendarType
 from msm.api.portfolios import Portfolio
 from msm_portfolios.configuration import (
     BacktestingWeightsConfig,
@@ -46,23 +48,51 @@ from msm_portfolios.time_index import (
 UTC = dt.timezone.utc
 # Equities trade on business days; a bar a few days old is still the last valuation.
 VALUATION_MAX_STALENESS = dt.timedelta(days=5)
+# Calendar rows per Markets API upsert; the 2024-2028 horizon is about 1,800 dates.
+CALENDAR_UPSERT_BATCH = 250
+
+
+def _upsert_calendar(*, valid_to: str) -> Calendar:
+    return Calendar.upsert(
+        unique_identifier=TRADING_CALENDAR_IDENTIFIER,
+        display_name="New York Stock Exchange",
+        calendar_type=CalendarType.TRADING,
+        timezone=str(mcal.get_calendar(TRADING_CALENDAR_SOURCE).tz),
+        source="pandas_market_calendars",
+        source_identifier=TRADING_CALENDAR_SOURCE,
+        valid_from=TRADING_CALENDAR_VALID_FROM,
+        valid_to=valid_to,
+    )
 
 
 def ensure_trading_calendar() -> Calendar:
-    """The persisted XNYS calendar, materialised through the configured horizon."""
+    """The persisted XNYS calendar, materialised through the configured horizon.
+
+    Hunch builds the dates and sessions from pandas-market-calendars and upserts them through the
+    Markets API: the hosted Markets API does not install pandas-market-calendars, so
+    `Calendar.create_from_pandas_calendar` fails there with ModuleNotFoundError (ADR 0006). The
+    horizon marks the calendar complete, so it is extended only after its rows are written.
+    """
+    from msm.services.calendars import build_pandas_market_calendar_materialization
+
     existing = Calendar.get_by_unique_identifier(TRADING_CALENDAR_IDENTIFIER)
     if existing is not None:
         valid_to = getattr(existing, "valid_to", None)
         if valid_to is not None and str(valid_to) >= TRADING_CALENDAR_VALID_TO:
             return existing
-    return Calendar.create_from_pandas_calendar(
+    calendar = existing or _upsert_calendar(valid_to=TRADING_CALENDAR_VALID_FROM)
+    rows = build_pandas_market_calendar_materialization(
+        calendar_uid=calendar.uid,
         source_identifier=TRADING_CALENDAR_SOURCE,
-        unique_identifier=TRADING_CALENDAR_IDENTIFIER,
-        display_name="New York Stock Exchange",
-        valid_from=TRADING_CALENDAR_VALID_FROM,
-        valid_to=TRADING_CALENDAR_VALID_TO,
+        start_date=TRADING_CALENDAR_VALID_FROM,
+        end_date=TRADING_CALENDAR_VALID_TO,
+        timezone=calendar.timezone,
         session_label=TRADING_CALENDAR_SESSION,
     )
+    for row_class, payloads in ((CalendarDate, rows.dates), (CalendarSession, rows.sessions)):
+        for start in range(0, len(payloads), CALENDAR_UPSERT_BATCH):
+            row_class.upsert_many(payloads[start : start + CALENDAR_UPSERT_BATCH])
+    return _upsert_calendar(valid_to=TRADING_CALENDAR_VALID_TO)
 
 
 def _series_ref(storage: type[Any]) -> TimeIndexTableRef:

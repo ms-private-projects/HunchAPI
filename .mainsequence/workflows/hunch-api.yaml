@@ -11,8 +11,9 @@ resources:
   # branch lets the workload discover (ADR 0006; every Job that starts the Markets engine carries
   # the same grant). `user` on the Agent lets the project configuration find and return it to the
   # site (site_agent.py). MetaTables roles (`editor` for hunch-migrate, `data_writer` for the API
-  # and the other Jobs, all on the `hunch` namespace only) are granted by the namespace owners, not
-  # declared here: docs/operations/hosted-deploy.md, "MetaTables roles".
+  # and the other Jobs, all on the `hunch` namespace only, plus `editor` on the series tables for
+  # the workloads that run updaters) are granted by the namespace owners, not declared here:
+  # docs/operations/hosted-deploy.md, "MetaTables roles".
   access:
     branch: editor
     branches:
