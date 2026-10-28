@@ -8,10 +8,13 @@ import pytest
 
 from hunch.migrations import METADATA, PROJECT_TABLE_NAMES, all_project_metatable_models
 from hunch.runtime import (
+    MARKETS_API_REQUEST_SECONDS,
     MARKETS_API_WAKE_SECONDS,
+    METATABLES_API_WAKE_SECONDS,
     application_runtime_models,
     markets_api_client,
     project_models,
+    wait_for_metatables_api,
 )
 from hunch.series import project_series_models
 
@@ -66,6 +69,20 @@ def test_the_markets_client_waits_for_a_waking_markets_api(monkeypatch) -> None:
         and MARKETS_API_WAKE_SECONDS > discovery.DISCOVERY_TIMEOUT
     )
     assert client.base_url == "https://markets.example.test"
+    assert client.timeout == MARKETS_API_REQUEST_SECONDS
+
+
+def test_the_metatables_api_is_resolved_with_a_wake_budget(monkeypatch) -> None:
+    from metatables import endpoint
+
+    budgets: list[float] = []
+    monkeypatch.setattr(
+        endpoint, "resolve_api_endpoint", lambda: budgets.append(endpoint.discovery_budget())
+    )
+    wait_for_metatables_api()
+    assert budgets == [METATABLES_API_WAKE_SECONDS]
+    assert METATABLES_API_WAKE_SECONDS > endpoint.DISCOVERY_TIMEOUT
+    assert endpoint.discovery_budget() == endpoint.DISCOVERY_TIMEOUT
 
 
 def test_hunch_row_classes_require_only_hunch_tables() -> None:

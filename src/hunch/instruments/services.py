@@ -63,7 +63,7 @@ def seed_universe(*, snapshot_time: dt.datetime | None = None) -> list[HunchInst
     ensure_cash_asset()
     existing = {row.figi: row for row in list_instruments()}
     snapshot_rows: list[dict[str, Any]] = []
-    created: list[HunchInstrument] = []
+    pending: list[dict[str, Any]] = []
     now = snapshot_time or utc_now()
     for index, item in enumerate(universe_fixture()):
         if item["figi"] in existing:
@@ -92,36 +92,43 @@ def seed_universe(*, snapshot_time: dt.datetime | None = None) -> list[HunchInst
                 "asset_ticker_group_id": item["ticker"],
             }
         )
-        created.append(
-            HunchInstrument.upsert(
-                figi=item["figi"],
-                asset_uid=asset.uid,
-                ticker=item["ticker"],
-                name=item["name"],
-                exchange_code=item.get("exchange_code"),
-                security_type=item.get("security_type"),
-                sector=item.get("sector"),
-                themes_json=list(item.get("themes") or []),
-                is_etf=bool(item.get("is_etf")),
-                is_leveraged=bool(item.get("is_leveraged")),
-                is_inverse=bool(item.get("is_inverse")),
-                is_tradable=True,
-                created_at=now,
-                updated_at=now,
-            )
+        pending.append(
+            {
+                "figi": item["figi"],
+                "asset_uid": asset.uid,
+                "ticker": item["ticker"],
+                "name": item["name"],
+                "exchange_code": item.get("exchange_code"),
+                "security_type": item.get("security_type"),
+                "sector": item.get("sector"),
+                "themes_json": list(item.get("themes") or []),
+                "is_etf": bool(item.get("is_etf")),
+                "is_leveraged": bool(item.get("is_leveraged")),
+                "is_inverse": bool(item.get("is_inverse")),
+                "is_tradable": True,
+                "created_at": now,
+                "updated_at": now,
+            }
         )
     if snapshot_rows:
         AssetSnapshots.publish(snapshot_rows)
-    instruments = list_instruments()
     category = AssetCategory.upsert(
         unique_identifier=UNIVERSE_CATEGORY_IDENTIFIER,
         display_name="Hunch universe",
         description="Every instrument Hunch can hold; the price coverage set.",
     )
     AssetCategory.replace_memberships(
-        category_uid=category.uid, asset_uids=[row.asset_uid for row in instruments]
+        category_uid=category.uid,
+        asset_uids=[
+            *(row.asset_uid for row in existing.values()),
+            *(row["asset_uid"] for row in pending),
+        ],
     )
-    return instruments
+    # Hunch's rows go last: `ensure_universe` takes them as the sign that the universe is seeded,
+    # so a failure above leaves the instruments missing and the next build seeds again.
+    for row in pending:
+        HunchInstrument.upsert(**row)
+    return list_instruments()
 
 
 def list_instruments() -> list[HunchInstrument]:
