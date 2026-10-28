@@ -14,8 +14,11 @@ import json
 def main() -> int:
     from hunch.migrations.namespace_move import move_project_tables_to_namespace
     from hunch.migrations.schema_gate import MIGRATION_PROVIDERS
+    from hunch.runtime import wait_for_metatables_api
     from metatables import upgrade_application
 
+    # A scaled-to-zero MetaTables API outlives the client's 30 s wake (2026-10-25, 2026-10-28).
+    wait_for_metatables_api()
     moved = move_project_tables_to_namespace()
     print(json.dumps({"namespace_move": moved}, sort_keys=True), flush=True)
     for provider in MIGRATION_PROVIDERS:

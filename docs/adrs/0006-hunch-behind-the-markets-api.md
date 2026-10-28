@@ -37,9 +37,13 @@ needed five to six minutes to start because it attached all of them.
    `MainSequenceMarkets` branch to the API and the nine Jobs that start the engine, not to the
    migration Job or the Agent. The schema gate checks only Hunch's provider: the Markets revision is
    the Markets deployment's concern, and reading it needs a grant Hunch no longer holds. The
-   hosted Markets API scales to zero; the backend's client (`hunch.runtime.markets_api_client`)
-   waits up to 600 s for it to wake, because the first development build failed after the
-   client's own 30 s while the API was still waking (2026-10-28).
+   hosted Markets and MetaTables APIs scale to zero. Every process resolves each with a 600 s
+   wake budget (`hunch.runtime.markets_api_client`, `wait_for_metatables_api`, also in the schema
+   gate and the migration Job), because the first development builds and a migration run failed
+   after the clients' own 30 s while the APIs were still waking (about 130 s, 2026-10-28). Markets
+   calls may take 300 s: an 85 s snapshot publish outlived the 60 s default and was reported
+   failed after the Markets API had written it. Seeding writes the Markets registries first and
+   Hunch's instrument rows last, so a failed seed is retried by the next build.
 4. **Reads.** Hunch reads its own values and weights instances directly (`TimeIndexTableRef`).
    The Markets read services join core tables in compiled SQL and would need Markets grants.
 5. **Registries and series, per primitive.**
@@ -95,6 +99,8 @@ out of a namespace needs `tables.update` there.
 - The per-portfolio progress fallback (ADR 0002, shim 3) is still present.
 - `MarketsClient.from_environment` waits a fixed 30 s for the Markets API to wake, with no setting;
   a scaled-to-zero API takes minutes. Hunch builds its client with a longer discovery timeout.
+- The Markets client's 60 s request timeout is shorter than a snapshot publish on a cold
+  Environment (85 s); the client reports a failure for a write that succeeded.
 
 ## Consequences
 

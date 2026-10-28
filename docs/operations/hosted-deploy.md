@@ -69,7 +69,8 @@ new User and needs the grant again; a Team holding the roles avoids that.
 First-deploy findings (development, 2026-10-25): the migration Job first timed out because the
 development MetaTables runtime was asleep (its `/runtime-context/` call exceeded the SDK's 120 s read
 timeout); warming the runtime (`ResourceRelease.wait_for_runtime_access`) and re-running the Job
-fixed that. The second run failed with `namespace_access_required` until the grants above existed.
+fixed that. Since 2026-10-28 every Hunch process waits up to 600 s for a waking MetaTables or
+Markets API (ADR 0006). The second run failed with `namespace_access_required` until the grants above existed.
 A failed migrate step blocks the API and Agent deploys (`workflow_prerequisite_failed`); after the
 fix, an empty commit on the branch re-runs the whole pipeline. The site build fails with
 `invalid_configuration` until the API release exists in the Environment and is rebuilt afterwards.
