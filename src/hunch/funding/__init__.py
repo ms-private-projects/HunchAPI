@@ -208,7 +208,6 @@ class HunchFunding(MarketsMetaTableRow):
         HunchUserProfileTable,
         HunchUserProfileAccountTable,
         TakeTable,
-        VirtualFundTable,
         HunchFundingTable,
     ]
     __upsert_keys__: ClassVar[tuple[str, ...]] = ("take_uid",)
@@ -238,7 +237,6 @@ class HunchRebalanceProposal(MarketsMetaTableRow):
         TakeTable,
         TakeRevisionTable,
         HunchFundingTable,
-        OrderManagerTable,
         HunchRebalanceProposalTable,
     ]
     __upsert_keys__: ClassVar[tuple[str, ...]] = ("uid",)

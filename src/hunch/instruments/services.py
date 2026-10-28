@@ -52,8 +52,12 @@ def ensure_cash_asset() -> Asset:
 
 
 def seed_universe(*, snapshot_time: dt.datetime | None = None) -> list[HunchInstrument]:
-    """Register every fixture instrument that is missing and return the whole universe."""
-    from msm.time_index.assets import AssetSnapshot
+    """Register every fixture instrument that is missing and return the whole universe.
+
+    Assets, their OpenFIGI details, snapshots and the universe category are Markets registries,
+    written through the Markets API (ADR 0006); the instrument rows are Hunch's.
+    """
+    from msm.api.assets import AssetSnapshots
 
     AssetType.upsert(**C.ASSET_TYPE_EQUITY_DEFINITION.as_payload())
     ensure_cash_asset()
@@ -107,9 +111,7 @@ def seed_universe(*, snapshot_time: dt.datetime | None = None) -> list[HunchInst
             )
         )
     if snapshot_rows:
-        error, _ = AssetSnapshot().set_snapshots(snapshot_rows, verify_existing=False).run()
-        if error:
-            raise RuntimeError("Publishing the instrument snapshots failed.")
+        AssetSnapshots.publish(snapshot_rows)
     instruments = list_instruments()
     category = AssetCategory.upsert(
         unique_identifier=UNIVERSE_CATEGORY_IDENTIFIER,

@@ -121,8 +121,6 @@ class HunchPortfolio(MarketsMetaTableRow):
 
     __table__: ClassVar[type[HunchPortfolioTable]] = HunchPortfolioTable
     __required_tables__: ClassVar[list[type[Any]]] = [
-        CalendarTable,
-        PortfolioTable,
         HunchUserProfileTable,
         TakeTable,
         HunchPortfolioTable,

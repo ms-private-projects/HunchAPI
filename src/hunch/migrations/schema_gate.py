@@ -20,9 +20,9 @@ from typing import Any
 # migrates the ms-markets schema.
 MIGRATION_PROVIDERS = ("hunch.migrations:migration",)
 
-# Providers whose schema this image's code reads, in dependency order. The gate also waits for the
-# ms-markets deployment to reach the version this image pins.
-GATED_PROVIDERS = ("msm_migrations:migration", *MIGRATION_PROVIDERS)
+# Providers whose schema this image's code reads. Hunch reaches the ms-markets schema only through
+# the Markets API (ADR 0006), so it no longer reads the Markets revision and holds no grant on it.
+GATED_PROVIDERS = MIGRATION_PROVIDERS
 
 
 @dataclass(frozen=True, slots=True)

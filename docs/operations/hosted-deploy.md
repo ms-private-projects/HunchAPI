@@ -54,17 +54,13 @@ curl -H "Authorization: Bearer $(.venv/bin/mainsequence auth token)" \
 
 ## Namespace roles (done by hand, per Environment)
 
-Hunch tables live in the MetaTables namespace `mainsequence.markets`. Workflow files cannot grant
-namespace roles, so after the first push of a branch (which creates the workload Users) an owner of
-the namespace, or an Organization admin, grants from their own session with the MetaTables client
-(`Namespace.filter(search=...)[0].grant_role(workload_user_uid, role)`), the checkout on that
-Environment's branch so the client resolves that Environment's MetaTables API:
-
-| Workload | Role | Why |
-| --- | --- | --- |
-| `Hunch Migrations` Job | `editor` | creates the tables (`tables.create`) |
-| `hunch` API and every other Hunch Job | `data_writer` | reads and writes rows |
-| the person running the deploy (or a Team) | `owner` | the namespace keeps an owner when Jobs are recreated |
+Hunch tables live in the MetaTables namespace `hunch` (until revision 0004 the product tables were
+catalogued in `mainsequence.markets`; ADR 0006). Workflow files cannot grant namespace roles, so
+after the first push of a branch (which creates the workload Users) an owner of the namespace, or
+an Organization admin, grants from their own session with the MetaTables client
+(`Namespace.filter(search=...)[0].grant_role(workload_user_uid, role)`, or `MetaTable.grant_role`
+for one table), the checkout on that Environment's branch so the client resolves that
+Environment's MetaTables API. The role table is under "MetaTables roles in each Environment".
 
 Workload User UIDs come from `GET /api/v1/jobs/?code_repository_branch_uid=<branch>`
 (`workload_user_uid`) and from the releases (`workload_user_uid`). A recreated Job or release gets a
@@ -96,22 +92,34 @@ fix, an empty commit on the branch re-runs the whole pipeline. The site build fa
 ## MetaTables roles in each Environment
 
 Workflow entries grant no MetaTables roles; an owner of each namespace grants them (MetaTables
-Admin, namespace **Access**, or `grant_role`). The Hunch tables register under the ms-markets
-namespace `mainsequence.markets` (the inherited mixins; only their physical names carry
-`hunch__`), and `hunch.alembic_version` under `hunch`, which the first `hunch-migrate` run creates
-with the Job as `editor`.
+Admin, namespace or table **Access**, or `grant_role`). Since revision 0004 (ADR 0006) every Hunch
+table is catalogued in `hunch`, and Hunch reaches the Markets registries only through the Markets
+API, which the workflow's `MainSequenceMarkets` branch grant lets each workload discover.
 
-| Principal (workload User) | `mainsequence.markets` | `hunch` |
+| Principal (workload User) | `hunch` | `mainsequence.markets` |
 | --- | --- | --- |
-| `hunch-migrate` | `editor` | `editor` (automatic) |
-| `hunch` API and every other Hunch Job, dispatchers included | `data_writer` | `data_viewer` |
-| a person or a Team of people | `owner` | `owner` |
+| `hunch-migrate` | `editor` (automatic) | `editor` until its first 0004 run has moved the tables, then none |
+| `hunch` API and every other Hunch Job, dispatchers included | `data_writer` | none |
+| the Markets API workload | `data_viewer` on `hunch__portfoliosts__takes`, `hunch__portfolioweightsts__takes` and `hunch__signalweightsts__takes` only (catalog reconcile) | owner side |
+| a person or a Team of people | `owner` | as before |
 
-Without `editor` the migration fails with 403 `namespace_access_required` naming its workload
-User, which blocks the API and the Agent and, through them, the site build. Workload User UIDs
-are on each Job (`GET /api/v1/jobs/?code_repository_branch_uid=<branch uid>`) and each release
+Before 0004 the Hunch product tables were catalogued in `mainsequence.markets` (the inherited
+mixins), so the API and the Jobs held `data_writer` there and `data_viewer` on `hunch`. Without
+`editor` the migration fails with 403 `namespace_access_required` naming its workload User, which
+blocks the API and the Agent and, through them, the site build. Workload User UIDs are on each Job
+(`GET /api/v1/jobs/?code_repository_branch_uid=<branch uid>`) and each release
 (`workload_user_uid`). A recreated Job or release gets a new workload User and needs its grant
-again. Granted in development on 2026-10-25.
+again. First granted in development on 2026-10-25.
+
+## Moving onto the Markets API boundary (revision 0004)
+
+1. Grant `data_writer` on `hunch` to the API and every Hunch Job (they held `data_viewer`).
+2. Push. `hunch-migrate` moves the product tables to `hunch` in place, then applies 0004, which
+   creates the series instances; the API and the Agent deploy after it. The new API attaches only
+   the Hunch tables, so its cold start no longer waits on the Markets tables.
+3. Grant the Markets API workload `data_viewer` on the three catalogued instances above, so the
+   catalog can verify and reconcile the takes.
+4. Revoke every Hunch workload's role on `mainsequence.markets`.
 
 ## Order of operations
 

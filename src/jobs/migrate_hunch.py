@@ -12,9 +12,12 @@ import json
 
 
 def main() -> int:
+    from hunch.migrations.namespace_move import move_project_tables_to_namespace
     from hunch.migrations.schema_gate import MIGRATION_PROVIDERS
     from metatables import upgrade_application
 
+    moved = move_project_tables_to_namespace()
+    print(json.dumps({"namespace_move": moved}, sort_keys=True), flush=True)
     for provider in MIGRATION_PROVIDERS:
         result = upgrade_application(provider)
         print(

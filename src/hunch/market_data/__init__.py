@@ -1,4 +1,4 @@
-"""Daily prices for every Hunch instrument, in ms-markets' `ExternalPricesTS`.
+"""Daily prices for every Hunch instrument, in Hunch's instance of ms-markets' `ExternalPricesTS`.
 
 One asset-indexed updater, `HunchDailyBars`, writes daily OHLCV bars stamped at the session close
 of the XNYS calendar for the whole Hunch universe. Its identity is constant: the MetaTables
@@ -153,8 +153,12 @@ class HunchDailyBars(AssetIndexedUpdater):
         self._asset_identifiers: list[str] | None = None
         self._provider: BarsProvider | None = None
         self._end: dt.date | None = None
+        from hunch.series import daily_bars_storage
+
+        # Hunch's own instance of the ExternalPricesTS contract (ADR 0006); the output table does
+        # not enter the updater's identity.
         super().__init__(
-            config=AssetIndexedUpdaterConfiguration(), output_table=ExternalPricesStorage
+            config=AssetIndexedUpdaterConfiguration(), output_table=daily_bars_storage()
         )
 
     def configure(

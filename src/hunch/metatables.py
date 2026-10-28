@@ -18,19 +18,22 @@ from typing import ClassVar
 
 from sqlalchemy.orm import declared_attr
 
-from hunch.settings import PROJECT_NAMESPACE_SLUG
+from hunch.settings import MIGRATION_NAMESPACE, PROJECT_NAMESPACE_SLUG
 from metatables import schema_table_name
 from msm.base import MarketsMetaTableMixin, MarketsTimeIndexMetaTableMixin
 from msm.settings import markets_auto_register_namespace
 
 # Physical-table app segment for this project's MetaTables.
 PROJECT_TABLE_APP = PROJECT_NAMESPACE_SLUG
+# Catalog namespace of every Hunch MetaTable (ADR 0047 decision 4), the migration provider's own.
+PROJECT_METATABLE_NAMESPACE = MIGRATION_NAMESPACE
 
 
 class HunchMarketsMetaTableMixin(MarketsMetaTableMixin):
     """Regular markets MetaTable mixin using this project's table-name app segment."""
 
     __abstract__ = True
+    __metatable_namespace__: ClassVar[str] = PROJECT_METATABLE_NAMESPACE
     __markets_storage_app__: ClassVar[str] = PROJECT_TABLE_APP
 
 
@@ -38,6 +41,7 @@ class HunchMarketsTimeIndexMetaTableMixin(MarketsTimeIndexMetaTableMixin):
     """Time-indexed (storage-first) markets MetaTable mixin using this project's app segment."""
 
     __abstract__ = True
+    __metatable_namespace__: ClassVar[str] = PROJECT_METATABLE_NAMESPACE
     __markets_storage_app__: ClassVar[str] = PROJECT_TABLE_APP
 
 

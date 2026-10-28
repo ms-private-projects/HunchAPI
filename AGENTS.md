@@ -34,12 +34,17 @@ Repository rules:
   launchers run by path; every launcher except the migration Job starts with
   `skip_if_schema_behind`. Hosted schema changes come only from the `hunch-migrate` Job; never run
   `metatables migrations upgrade` against a hosted environment. Revisions add first and drop later.
-- Each process attaches the ms-markets runtime once through `hunch.runtime.start_markets_engine`.
+- Each process attaches the ms-markets runtime once through `hunch.runtime.start_markets_engine`,
+  which serves every Markets registry through the Markets API and attaches only Hunch's tables
+  (ADR 0006). No Hunch row class requires a Markets table, and Hunch holds no role on
+  `mainsequence.markets`. Every series Hunch writes is its own instance of the ms-markets contract
+  (`hunch.series`, bound with `output_table=`); never write a Markets core time-series table and
+  never create a Markets order batch (the connector owns the execution ledger).
 - Money moves only through `HunchRebalanceProposal` rows: fund, rebalance and withdraw create a
   proposal; approval mode needs the person's decision, autopilot needs `autopilot_check` to pass.
   Ownership of a venue account is decided by `HunchUserProfileAccount` alone.
-- The ms-markets shims in `hunch.compat` are documented in ADRs 0002 and 0005; remove each when
-  ms-markets fixes the call site, never add behaviour there.
+- The shims in `hunch.compat` are documented in ADRs 0002, 0005 and 0006; remove each when
+  ms-markets or MetaTables fixes the call site, never add behaviour there.
 
 FastAPI surface:
 
