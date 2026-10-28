@@ -41,6 +41,14 @@ def _platform_job(name: str, execution_path: str) -> Any:
     return job
 
 
+def _started_job_run_uid(started: Any) -> str:
+    """The JobRun UID from `Job.run_job`, which answers `{"message": ..., "job_run_uid": ...}`."""
+    job_run_uid = started.get("job_run_uid") if isinstance(started, dict) else None
+    if not job_run_uid:
+        raise RuntimeError("The platform did not report a JobRun for the started Job.")
+    return str(uuid.UUID(str(job_run_uid)))
+
+
 def start_take_build(
     take_uid: uuid.UUID | str,
     *,
@@ -59,8 +67,8 @@ def start_take_build(
     args = ["--take-uid", uid]
     if research_mode:
         args += ["--research-mode", research_mode]
-    run = job.run_job(timeout=60, command_args=args)
-    return StartedBuild(execution="job", take_uid=uid, job_run_uid=str(getattr(run, "uid", run)))
+    started = job.run_job(timeout=60, command_args=args)
+    return StartedBuild(execution="job", take_uid=uid, job_run_uid=_started_job_run_uid(started))
 
 
 def start_portfolio_refresh(
@@ -74,8 +82,8 @@ def start_portfolio_refresh(
         result = refresh_take_portfolio(uid)
         return StartedBuild(execution="inline", take_uid=uid, result=result)
     job = _platform_job(PORTFOLIO_REFRESH_JOB_NAME, PORTFOLIO_REFRESH_JOB_PATH)
-    run = job.run_job(timeout=60, command_args=["--take-uid", uid])
-    return StartedBuild(execution="job", take_uid=uid, job_run_uid=str(getattr(run, "uid", run)))
+    started = job.run_job(timeout=60, command_args=["--take-uid", uid])
+    return StartedBuild(execution="job", take_uid=uid, job_run_uid=_started_job_run_uid(started))
 
 
 def job_run_status(job_run_uid: str) -> dict[str, Any] | None:

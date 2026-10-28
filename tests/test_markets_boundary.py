@@ -7,7 +7,12 @@ from types import SimpleNamespace
 import pytest
 
 from hunch.migrations import METADATA, PROJECT_TABLE_NAMES, all_project_metatable_models
-from hunch.runtime import application_runtime_models, project_models
+from hunch.runtime import (
+    MARKETS_API_WAKE_SECONDS,
+    application_runtime_models,
+    markets_api_client,
+    project_models,
+)
 from hunch.series import project_series_models
 
 
@@ -41,6 +46,26 @@ def test_markets_tables_appear_only_as_key_only_references() -> None:
         assert name.startswith("ms_markets__"), name
         assert not table.foreign_keys, name
         assert set(table.c.keys()) <= {"uid", "unique_identifier", "signal_uid"}, name
+
+
+def test_the_markets_client_waits_for_a_waking_markets_api(monkeypatch) -> None:
+    from msm.client import discovery
+
+    waits: list[float] = []
+
+    def resolve(*, timeout):
+        waits.append(timeout)
+        return discovery.MarketsApiEndpoint(
+            "https://markets.example.test", release_uid=None, headers=lambda _force: {}
+        )
+
+    monkeypatch.setattr(discovery, "resolve_markets_api_endpoint", resolve)
+    client = markets_api_client()
+    assert (
+        waits == [MARKETS_API_WAKE_SECONDS]
+        and MARKETS_API_WAKE_SECONDS > discovery.DISCOVERY_TIMEOUT
+    )
+    assert client.base_url == "https://markets.example.test"
 
 
 def test_hunch_row_classes_require_only_hunch_tables() -> None:
