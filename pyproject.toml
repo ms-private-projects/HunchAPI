@@ -17,7 +17,7 @@ dependencies = [
   # The MetaTables client (`metatables`): migrations provider and governed table access.
   "mainsequence-metatable>=0.1.57,<0.2",
   # Every market primitive comes from ms-markets. 3.x carries the ADR 0048 names (`time_index`,
-  # `*Updater`); keep the rename scan in the validation clean so 4.0 stays a dependency bump.
+  # `*Updater`); the rename scan in the validation keeps the code on the 3.0 names (ADR 0005).
   "ms-markets[portfolios]>=3.0.1,<4",
   # Hunch reads exchange sessions itself (`hunch.market_data`), so it declares the calendars too.
   "pandas-market-calendars>=5.4.0",

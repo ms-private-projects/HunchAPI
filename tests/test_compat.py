@@ -47,3 +47,42 @@ def test_installing_twice_does_not_stack_the_shims() -> None:
     first = rebalance.PortfolioRebalance._latest_transition_time_index_value
     install_compat_patches()
     assert rebalance.PortfolioRebalance._latest_transition_time_index_value is first
+
+
+def test_sqlite_operations_carry_uuids_as_sqlite_stores_them(monkeypatch) -> None:
+    import uuid
+
+    from hunch import compat
+    from metatables.compiled_sql import v1
+
+    calls: list[dict] = []
+
+    def recorder(**kwargs):
+        calls.append(kwargs)
+        return kwargs
+
+    monkeypatch.setattr(v1, "build_operation", recorder)
+    compat._patch_sqlite_expanding_uuid_params()
+    value = uuid.UUID("d1f32172-b0a4-481a-a9c4-096b8e445e1a")
+
+    v1.build_operation(dialect="sqlite", parameters=[value, "x"])
+    v1.build_operation(dialect="sqlite", parameters={"uid_1_1": value})
+    v1.build_operation(dialect="postgresql", parameters=[value])
+
+    assert calls[0]["parameters"] == [value.hex, "x"]
+    assert calls[1]["parameters"] == {"uid_1_1": value.hex}
+    assert calls[2]["parameters"] == [value]
+
+
+def test_sqlite_datetime_binds_accept_iso_strings_as_utc_timestamps() -> None:
+    from sqlalchemy.dialects import sqlite
+    from sqlalchemy.dialects.sqlite.base import DATETIME
+
+    install_compat_patches()
+    process = DATETIME().bind_processor(sqlite.dialect())
+    assert process("2026-10-27T20:00:00Z") == dt.datetime(2026, 10, 27, 20, tzinfo=dt.timezone.utc)
+    assert process("2026-10-27T22:00:00+02:00") == dt.datetime(
+        2026, 10, 27, 20, tzinfo=dt.timezone.utc
+    )
+    stamp = dt.datetime(2026, 10, 27, 20, 0, 0)
+    assert process(stamp) == "2026-10-27 20:00:00.000000"

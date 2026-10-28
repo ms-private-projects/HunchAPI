@@ -11,9 +11,11 @@ Architecture decisions live under [docs/adrs/](docs/adrs/).
 
 ## Principles
 
-- **ms-markets is the market ledger.** Assets, accounts, holdings, signals, portfolios, orders and
-  trades live only in ms-markets tables. Hunch tables reference them by foreign key and add the
-  product layer. `HunchPortfolio` extends the ms-markets `Portfolio` one-to-one.
+- **ms-markets is the market ledger, reached through the Markets API.** Assets, accounts,
+  calendars, portfolios, signals and funds are Markets registries that Hunch reads and writes only
+  through the Markets API (ADR 0006). The time series Hunch produces live in Hunch's own instances
+  of the ms-markets contracts (`hunch.series`), which Markets catalogues. Hunch tables reference
+  Markets rows by foreign key; `HunchPortfolio` extends the ms-markets `Portfolio` one-to-one.
 - **Connectors are the brokerage boundary, called deterministically.** Hunch services and Jobs call
   the Alpaca and IBKR connector APIs through typed clients; the Agent and the model never call a
   connector. Hunch never holds a broker credential.
@@ -29,23 +31,25 @@ api/agent/main.py        # the Hunch Agent: app = ms_tau_sdk.create_app()
 src/hunch/               # the installable package
   profiles/              # HunchUserProfile, HunchUserProfileAccount, account linking (accounts.py)
   instruments/           # HunchInstrument universe (FIGI keyed) over ms-markets Assets
-  market_data/           # HunchDailyBars (ExternalPricesTS) and the bar providers
+  market_data/           # HunchDailyBars (Hunch's ExternalPricesTS instance) and the bar providers
   research/              # thesis -> candidates (recorded inference or heuristic) -> guardrails
   takes/                 # HunchTake, HunchTakeRevision and the take lifecycle
   portfolios/            # HunchPortfolio, the basket signal, the ms-markets portfolio graph, builds
   connectors/            # the venue connector port: Alpaca and IBKR HTTP clients, simulated venue
-  funding/               # HunchFunding, HunchRebalanceProposal, ms-markets ledger, execution flow
+  funding/               # HunchFunding, HunchRebalanceProposal, fund and target ledger, execution
   reviews/               # HunchDailyReview and the daily review
   community/             # leaderboard snapshots and notifications
   channels/              # email digest: composition, delivery, outbox/platform/smtp senders
   operations/            # build/review orchestration (inline locally, Jobs hosted)
-  migrations/            # `hunch.migrations:migration` provider, schema gate, revisions 0001-0003
+  migrations/            # `hunch.migrations:migration`, schema gate, namespace move, 0001-0004
+  series.py              # Hunch's instances of the ms-markets time-series contracts
   api/app/               # routers, services, schemas, identity, errors, capabilities, mcp_server
   agent_tools.py         # the tool catalog the API serves at /mcp
-  compat.py              # shims for ms-markets 2.2.12-3.0.2 (see ADRs 0002 and 0005)
-  runtime.py             # the single msm.start_engine per process
+  compat.py              # shims for ms-markets and SQLite (see ADRs 0002, 0005 and 0006)
+  runtime.py             # Markets API backend and the single engine start per process
 src/jobs/                # Job launchers run by path (not in the wheel)
-scripts/dev_stack.sh     # local stack: MetaTables, loopback API, local Tau, the site
+scripts/dev_stack.sh     # local stack: MetaTables, Markets API, loopback API, local Tau, the site
+scripts/local_markets_api.py  # loopback Markets API, run with the ms-markets checkout's interpreter
 .tau/SYSTEM.md           # the Agent's runtime instructions
 .agents/                 # agent_card.json and the published skills (.agents/skills/mcp_tools)
 .mainsequence/workflows/ # API, Agent and migration Job declarations (workflow API 3.0.0)
@@ -79,26 +83,32 @@ uv export --locked --no-dev --no-hashes --format requirements-txt -o requirement
 
 ## Run everything locally
 
-`scripts/dev_stack.sh` starts the local MetaTables API (SQLite), the loopback Hunch API on
-127.0.0.1:8601 (it presents your SDK sign-in on every request, so the browser and `curl` need no
-header), the local Tau runtime of the Hunch Agent on 127.0.0.1:8602 and the Command Center site on
-127.0.0.1:5601 (the sibling `hunch` repository). Prepare the runtime once:
+`scripts/dev_stack.sh` starts the local MetaTables API (SQLite), a loopback Markets API on
+127.0.0.1:8603 (the sibling `mainsequencemarkets-*` checkout, run with its own `.venv`, which
+`uv sync --all-extras` creates there), the loopback Hunch API on 127.0.0.1:8601 (it presents your
+SDK sign-in on every request, so the browser and `curl` need no header), the local Tau runtime of
+the Hunch Agent on 127.0.0.1:8602 and the Command Center site on 127.0.0.1:5601 (the sibling
+`hunch` repository). Hunch reaches every Markets registry through the Markets API
+(`MARKETS_API_URL`); scripts and tests run outside the stack need the same variable. Prepare the
+runtime once:
 
 ```bash
 mainsequence login
 .venv/bin/metatables init --local && .venv/bin/metatables serve --local --no-open-browser &
 .venv/bin/metatables --local migrations upgrade --provider msm_migrations:migration head
 .venv/bin/python scripts/local_prepare_runtime.py
+PYTHONPATH=src .venv/bin/python -m hunch.migrations.namespace_move --local
 .venv/bin/metatables --local migrations upgrade --provider hunch.migrations:migration head
 ```
 
 ```bash
-scripts/dev_stack.sh all      # or: api | tau | site
+scripts/dev_stack.sh all      # or: markets | api | tau | site
 ```
 
 Local defaults: builds run inline with heuristic research (`HUNCH_RESEARCH_MODE`), and the venue
 connectors are simulated (`HUNCH_CONNECTOR_MODE=simulated`: a paper venue inside Hunch that fills
-orders at the last stored close and writes the same ms-markets rows a connector would). Set
+orders at the last stored close and keeps its records as a connector does, Markets rows through
+the Markets API and its holdings and fills in its own instances). Set
 `HUNCH_CONNECTOR_MODE=live` with `HUNCH_ALPACA_CONNECTOR_URL` / `HUNCH_IBKR_CONNECTOR_URL` to call
 the connector releases, and `HUNCH_RESEARCH_MODE=inference` with `HUNCH_INFERENCE_ENVIRONMENT_UID`
 to research through recorded inference (ADR 0002 explains the local finding).
@@ -118,17 +128,21 @@ The hosted entry point `api.app.main:app` verifies the platform's caller asserti
 
 ## Schema
 
-The `hunch` MetaTables live in the `hunch` namespace and are applied only by this repository's
-provider. The ms-markets schema they reference is owned by the ms-markets deployment.
+The `hunch` MetaTables (the product tables and the series instances) live in the `hunch` namespace
+and are applied only by this repository's provider. The ms-markets schema they reference is owned
+by the ms-markets deployment. Tables catalogued before revision 0004 move to `hunch` in place
+(`hunch.migrations.namespace_move`), which the `hunch-migrate` Job runs before every upgrade.
 
 ```bash
 # local development database only; hosted environments run the hunch-migrate Job
 metatables --local migrations upgrade --provider msm_migrations:migration head
+PYTHONPATH=src .venv/bin/python -m hunch.migrations.namespace_move --local
 metatables --local migrations upgrade --provider hunch.migrations:migration head
 ```
 
-Workloads need `data_viewer` or `data_writer` on the `mainsequence.markets` namespace from its
-owner; the workflow file declares the branch, MetaTables and Agent access.
+Workloads need `data_writer` (the Migrations Job `editor`) on the `hunch` namespace from its owner
+and no role on `mainsequence.markets`; the workflow file declares the branch, MetaTables, Markets
+API and Agent access (`docs/operations/hosted-deploy.md`).
 
 ## Deployment
 

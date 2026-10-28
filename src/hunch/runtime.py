@@ -1,9 +1,15 @@
-"""ms-markets runtime bootstrap for Hunch.
+"""ms-markets runtime bootstrap for Hunch (the Markets API boundary, ADR 0006).
 
-Storage-first ms-markets requires one ``start_engine(...)`` per process **before** any
-MetaTable-backed row, repository, service or time-index updater operation. It attaches the runtime to the
-already-migrated MetaTables; it never creates schema (the migration providers do). A process may
-attach only one model set, so every entry point attaches the complete set below.
+Every Hunch process reaches the Markets registries (assets, calendars, accounts, portfolios,
+signals, funds, order batches) through the Markets API: ``start_markets_engine`` selects the remote
+row backend, which serves every row class whose table is catalogued in the Markets namespace. The
+process attaches only Hunch's own tables, the product tables and the time-series instances in
+``hunch.series``, all catalogued in the ``hunch`` namespace; a Markets table that one of them
+references is resolved by physical name and never attached, so Hunch holds no grant on
+``mainsequence.markets``.
+
+The Markets API is discovered from the workflow's ``MainSequenceMarkets`` branch grant; locally
+``MARKETS_API_URL`` points at the loopback Markets API (``scripts/dev_stack.sh``).
 
 Call ``start_markets_engine()`` once at every process entry point (each Job ``main()``, FastAPI
 startup, the local launcher).
@@ -40,65 +46,19 @@ def project_models() -> list[type[Any]]:
 
 
 def application_runtime_models() -> list[type[Any]]:
-    """Complete model set every Hunch process attaches.
+    """Every table a Hunch process attaches: the product tables and Hunch's series instances."""
+    from hunch.series import project_series_models
 
-    The ms-markets portfolio graph (signals, calendar events, rebalances, weights, values,
-    external prices), the asset registry and snapshots, accounts with holdings, target positions
-    and virtual funds, the execution ledger, and the Hunch tables. ``start_engine`` re-orders by
-    foreign-key dependency and auto-includes referenced built-in tables.
-    """
-    from msm_pricing.models.pricing_details import AssetCurrentPricingDetailsTable
-    from msm_pricing.time_index.pricing_details.storage import AssetPricingDetailsStorage
+    return [*project_models(), *project_series_models()]
 
-    from msm.models import (
-        AssetCategoryMembershipTable,
-        AssetCategoryTable,
-        CalendarDateTable,
-        CalendarSessionTable,
-        OpenFigiAssetDetailsTable,
-        OrderManagerTable,
-        VirtualFundHoldingsSetTable,
-    )
-    from msm.models.assets.bonds import BondAssetDetailsTable
-    from msm.models.assets.currency_spot import CurrencySpotAssetDetailsTable
-    from msm.models.derivatives import FutureAssetDetailsTable
-    from msm.models.index_formulas import IndexFormulaInputTable
-    from msm.time_index.accounts.storage import AccountHoldingsStorage
-    from msm.time_index.accounts.virtual_funds.storage import VirtualFundHoldingsStorage
-    from msm.time_index.assets.storage import AssetSnapshotsStorage
-    from msm.time_index.execution.storage import (
-        OrderEventsStorage,
-        OrdersStorage,
-        TradesStorage,
-    )
-    from msm_portfolios.bootstrap import resolve_portfolio_models
 
-    return [
-        *resolve_portfolio_models(None),
-        # Every registered static table that references the asset table is attached: the governed
-        # SQL layer checks them on upserts of the asset key (assets themselves are created with
-        # plain inserts, see hunch.instruments.services).
-        BondAssetDetailsTable,
-        CurrencySpotAssetDetailsTable,
-        FutureAssetDetailsTable,
-        IndexFormulaInputTable,
-        AssetPricingDetailsStorage,
-        AssetCurrentPricingDetailsTable,
-        OpenFigiAssetDetailsTable,
-        AssetSnapshotsStorage,
-        AssetCategoryTable,
-        AssetCategoryMembershipTable,
-        CalendarDateTable,
-        CalendarSessionTable,
-        AccountHoldingsStorage,
-        VirtualFundHoldingsSetTable,
-        VirtualFundHoldingsStorage,
-        OrderManagerTable,
-        OrdersStorage,
-        OrderEventsStorage,
-        TradesStorage,
-        *project_models(),
-    ]
+def use_markets_api() -> None:
+    """Serve every Markets row class of this process through the Markets API (idempotent)."""
+    from msm.api.remote import active_remote_backend, use_remote_backend
+    from msm.client import LazyRemoteBackend
+
+    if active_remote_backend() is None:
+        use_remote_backend(LazyRemoteBackend())
 
 
 def start_markets_engine(
@@ -114,6 +74,7 @@ def start_markets_engine(
     from msm.bootstrap import resolve_runtime
 
     install_compat_patches()
+    use_markets_api()
     models = application_runtime_models()
     try:
         return resolve_runtime(models=models, row_model_name=ROW_MODEL_NAME)
@@ -136,4 +97,5 @@ __all__ = [
     "markets_runtime",
     "project_models",
     "start_markets_engine",
+    "use_markets_api",
 ]

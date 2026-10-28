@@ -160,7 +160,6 @@ class Take(MarketsMetaTableRow):
     __table__: ClassVar[type[TakeTable]] = TakeTable
     __required_tables__: ClassVar[list[type[Any]]] = [
         HunchUserProfileTable,
-        SignalMetadataTable,
         TakeTable,
     ]
     __upsert_keys__: ClassVar[tuple[str, ...]] = ("uid",)

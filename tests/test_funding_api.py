@@ -161,11 +161,6 @@ def client(local_caller, monkeypatch, venue) -> TestClient:
     monkeypatch.setattr(
         "hunch.funding.services.publish_account_target", lambda *a, **k: {"position_set_uid": "ps"}
     )
-    monkeypatch.setattr(
-        "hunch.funding.services.create_order_batch",
-        lambda batch_id, acct, t, status: type("OM", (), {"uid": uuid.uuid4()})(),
-    )
-    monkeypatch.setattr("hunch.funding.services.update_order_batch", lambda *a, **k: None)
     fund_state: dict[str, float] = {}
     monkeypatch.setattr(
         "hunch.funding.services.fund_latest_holdings", lambda vf: (NOW, dict(fund_state))

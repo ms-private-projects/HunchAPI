@@ -47,17 +47,18 @@ def test_provider_identity_and_version_location() -> None:
     assert migration.migration_namespace == "hunch"
     assert tuple(migration.version_locations) == ("hunch.migrations:versions/hunch",)
     assert MIGRATION_PROVIDERS == ("hunch.migrations:migration",)
-    assert GATED_PROVIDERS[0] == "msm_migrations:migration"
+    # Hunch reaches the ms-markets schema only through the Markets API (ADR 0006).
+    assert GATED_PROVIDERS == MIGRATION_PROVIDERS
 
 
 def test_provider_loads_by_reference_with_a_single_head() -> None:
     loaded = load_provider("hunch.migrations:migration")
-    assert code_head_revision(script_directory(loaded)) == "0003"
+    assert code_head_revision(script_directory(loaded)) == "0004"
 
 
 def test_revisions_create_every_project_table_with_its_model_columns() -> None:
     sql = "\n".join(
-        _offline_sql(_revision_module(name).upgrade) for name in ("0001", "0002", "0003")
+        _offline_sql(_revision_module(name).upgrade) for name in ("0001", "0002", "0003", "0004")
     )
     created = set(re.findall(r"CREATE TABLE (\w+) \(", sql))
     assert created == PROJECT_TABLE_NAMES
@@ -75,6 +76,6 @@ def test_revisions_create_every_project_table_with_its_model_columns() -> None:
 
 def test_downgrades_drop_every_project_table() -> None:
     sql = "\n".join(
-        _offline_sql(_revision_module(name).downgrade) for name in ("0003", "0002", "0001")
+        _offline_sql(_revision_module(name).downgrade) for name in ("0004", "0003", "0002", "0001")
     )
     assert set(re.findall(r"DROP TABLE (\w+);", sql)) == PROJECT_TABLE_NAMES

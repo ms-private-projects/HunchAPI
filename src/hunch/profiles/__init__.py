@@ -210,7 +210,6 @@ class HunchUserProfileAccount(MarketsMetaTableRow):
 
     __table__: ClassVar[type[HunchUserProfileAccountTable]] = HunchUserProfileAccountTable
     __required_tables__: ClassVar[list[type[Any]]] = [
-        AccountTable,
         HunchUserProfileTable,
         HunchUserProfileAccountTable,
     ]

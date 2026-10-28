@@ -10,7 +10,7 @@
 
 ms-markets 3.0 renames its time-index vocabulary (its ADR 0048): `msm.data_nodes`,
 `msm_portfolios.data_nodes` and `msm_pricing.data_nodes` become `*.time_index`, and `*DataNode`
-classes become `*Updater`. The old paths warn through 3.x and disappear in 4.0. The hosted
+classes become `*Updater`. The old paths still work through 3.x with a warning. The hosted
 databases of both Environments were migrated to ms-markets revision `0022` by the Markets
 deployment while Hunch still ran 2.2.12. Markets cannot release 3.1.0 (revision `0023`) while any
 2.x writer remains, so Hunch on 2.x blocked it.
@@ -24,8 +24,8 @@ deployment while Hunch still ran 2.2.12. Markets cannot release 3.1.0 (revision 
 2. **Names.** Every import uses the 3.0 path and class name (`AssetIndexedUpdater`,
    `AssetIndexedUpdaterConfiguration`, `PortfoliosUpdater`, `msm.time_index.*`,
    `msm_portfolios.time_index.*`, `msm_pricing.time_index.*`). `msm rename-preflight scan src tests
-   api scripts` is part of validation and exits 1 on any pre-3.0 name, so 4.0 stays a dependency
-   bump.
+   api scripts` is part of validation and exits 1 on any pre-3.0 name, so the old names never come
+   back.
 3. **Shims.** The three `hunch.compat` shims were re-checked on 3.0.2 and all are still needed: the
    calendar-session search still passes `calendar_uid` as a string, several call sites still bind
    UUID strings (SQLite only), and the rebalance, weights and values updaters still fall back to the
@@ -38,9 +38,9 @@ deployment while Hunch still ran 2.2.12. Markets cannot release 3.1.0 (revision 
    takes built on 2.2.12 rotated all three updaters of each, continued from the last stored value,
    and left every earlier value unchanged with no duplicate time index. Run history in MetaTables
    splits at the upgrade; nothing in Hunch reads it.
-5. **Release order.** Hunch deploys 3.x to development, then Production. Once both run 3.x, Markets
-   may ship 3.1.0. Hunch moves to 4.0 before Markets ships 4.1.0 (revision `0025`), which drops the
-   old columns that every 3.x model still maps.
+5. **Release order.** Hunch deploys 3.x to development, then Production. Once both run 3.x,
+   Markets may ship 3.1.0. There is no ms-markets 4: Hunch stays on `>=3.0.1,<4` and follows the
+   3.x column releases with dependency bumps.
 
 ## Consequences
 

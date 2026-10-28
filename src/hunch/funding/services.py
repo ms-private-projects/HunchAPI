@@ -26,12 +26,10 @@ from hunch.connectors import (
 )
 from hunch.funding import HunchFunding, HunchRebalanceProposal
 from hunch.funding.ledger import (
-    create_order_batch,
     ensure_virtual_fund,
     fund_identifier,
     fund_latest_holdings,
     publish_account_target,
-    update_order_batch,
     write_fund_holdings,
 )
 from hunch.instruments.services import ensure_universe, instruments_by_figi
@@ -671,19 +669,19 @@ def submit_proposal(proposal: HunchRebalanceProposal) -> HunchRebalanceProposal:
         raise ConnectorCapabilityUnavailable(
             f"The {link.venue} connector cannot execute orders yet."
         )
-    batch = create_order_batch(batch_id, link.account_uid, now, status="submitted")
+    # The batch is Hunch's identifier of this execution; the venue's connector keeps the
+    # execution ledger (orders, trades and any order batch) on its side (ADR 0006).
     try:
         result = connector.submit_orders(str(link.account_uid), batch_id, _order_legs(proposal))
     except ConnectorError as exc:
-        update_order_batch(batch_id, status="failed", execution_end=now)
         failed = HunchRebalanceProposal.update(
             proposal.uid,
             status="failed",
-            order_manager_uid=batch.uid,
             completed_at=now,
             updated_at=now,
             metadata_json={
                 **(proposal.metadata_json or {}),
+                "batch_id": batch_id,
                 "error": str(exc),
                 "error_code": exc.code,
             },
@@ -702,7 +700,6 @@ def submit_proposal(proposal: HunchRebalanceProposal) -> HunchRebalanceProposal:
     submitted = HunchRebalanceProposal.update(
         proposal.uid,
         status="submitted",
-        order_manager_uid=batch.uid,
         submitted_at=now,
         updated_at=now,
         metadata_json={
@@ -805,7 +802,6 @@ def sync_proposal(
         metadata_json=metadata,
     )
     if terminal:
-        update_order_batch(batch_id, status=status, execution_end=now)
         if status == "failed":
             notify(
                 funding.owner_user_uid,

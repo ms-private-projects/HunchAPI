@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Local development stack: MetaTables local runtime, the loopback Hunch API, the local Tau runtime
-# of the Hunch Agent, and the Command Center site.
+# Local development stack: MetaTables local runtime, the loopback Markets API, the loopback Hunch
+# API, the local Tau runtime of the Hunch Agent, and the Command Center site.
 #
-#   scripts/dev_stack.sh [all|api|tau|site]     (default: all)
+#   scripts/dev_stack.sh [all|markets|api|tau|site]     (default: all)
 #
 # - MetaTables: uses the laptop's running local API, otherwise starts it with `metatables serve
 #   --local`. Every checkout shares that one API.
+# - Markets API: the sibling ms-markets checkout's `api.main:app` on 127.0.0.1:8603, run with that
+#   checkout's interpreter by scripts/local_markets_api.py; reused when already running. Hunch
+#   reaches every Markets registry through it (`MARKETS_API_URL`, ADR 0006).
 # - API: `api.app.local:app` on 127.0.0.1:8601, connected to the local MetaTables runtime. It
 #   presents this process's SDK sign-in on every loopback request (api/app/local.py). Builds run
 #   inline with heuristic research (HUNCH_RESEARCH_MODE); recorded inference needs a model provider
@@ -25,6 +28,8 @@ SITE_DIR="${HUNCH_SITE_DIR:-$ROOT/../hunch-52848869-59a2-4291-bb0b-33b01760a400}
 API_PORT="${HUNCH_LOCAL_API_PORT:-8601}"
 TAU_PORT="${HUNCH_LOCAL_TAU_PORT:-8602}"
 SITE_PORT="${HUNCH_LOCAL_SITE_PORT:-5601}"
+MARKETS_PORT="${HUNCH_LOCAL_MARKETS_PORT:-8603}"
+MARKETS_DIR="${HUNCH_MARKETS_DIR:-$(ls -d "$ROOT"/../mainsequencemarkets-* 2>/dev/null | head -n 1)}"
 TAU_PROVIDER="${HUNCH_LOCAL_TAU_PROVIDER:-openai-codex}"
 TAU_MODEL="${HUNCH_LOCAL_TAU_MODEL:-gpt-5.6-luna}"
 TAU_THINKING="${HUNCH_LOCAL_TAU_THINKING:-medium}"
@@ -34,9 +39,9 @@ PY="$ROOT/.venv/bin/python"
 METATABLES="$ROOT/.venv/bin/metatables"
 
 case "$MODE" in
-  all | api | tau | site) ;;
+  all | markets | api | tau | site) ;;
   *)
-    echo "usage: scripts/dev_stack.sh [all|api|tau|site]" >&2
+    echo "usage: scripts/dev_stack.sh [all|markets|api|tau|site]" >&2
     exit 2
     ;;
 esac
@@ -154,10 +159,47 @@ else:
 PY
 }
 
+# True when an HTTP server answers at the URL, whatever the status: every Markets API route,
+# /openapi.json included, requires a caller and answers 401 without one.
+http_answers() {
+  local code
+  code="$(curl -s -o /dev/null -m 5 -w '%{http_code}' "$1" 2>/dev/null)"
+  [[ -n "$code" && "$code" != "000" ]]
+}
+
+# The loopback Markets API: reused when it already answers, otherwise started from the checkout.
+ensure_markets() {
+  local url="http://127.0.0.1:$MARKETS_PORT" attempt
+  if port_in_use "$MARKETS_PORT"; then
+    http_answers "$url/openapi.json" \
+      || die "Port $MARKETS_PORT is in use by $(port_owner "$MARKETS_PORT"), which does not answer HTTP."
+    log "Markets API: reusing $url"
+    return 0
+  fi
+  [[ -n "$MARKETS_DIR" && -x "$MARKETS_DIR/.venv/bin/python" ]] \
+    || die "No ms-markets checkout with a .venv next to this one; set HUNCH_MARKETS_DIR."
+  log "Markets API: $url (from $MARKETS_DIR)"
+  (cd "$MARKETS_DIR" && exec "$MARKETS_DIR/.venv/bin/python" "$ROOT/scripts/local_markets_api.py" \
+    --port "$MARKETS_PORT") > >(prefix markets) 2>&1 &
+  local launcher="$!"
+  PIDS+=("$launcher")
+  # Startup attaches every Markets table; allow a few minutes.
+  for attempt in $(seq 1 300); do
+    if http_answers "$url/openapi.json"; then
+      log "Markets API: ready at $url"
+      return 0
+    fi
+    kill -0 "$launcher" 2>/dev/null || die "The Markets API exited before it was ready."
+    sleep 1
+  done
+  die "The Markets API did not become ready at $url."
+}
+
 start_api() {
   require_free_port "$API_PORT" "API"
   log "API: http://127.0.0.1:$API_PORT (research: $RESEARCH_MODE, connectors: $CONNECTOR_MODE, builds inline)"
   PYTHONPATH="$ROOT" \
+    MARKETS_API_URL="http://127.0.0.1:$MARKETS_PORT" \
     HUNCH_LOCAL_TAU_ORIGIN="http://127.0.0.1:$TAU_PORT" \
     HUNCH_RESEARCH_MODE="$RESEARCH_MODE" \
     HUNCH_CONNECTOR_MODE="$CONNECTOR_MODE" \
@@ -211,12 +253,18 @@ start_site() {
 case "$MODE" in
   all)
     ensure_metatables
+    ensure_markets
     start_api
     start_tau
     start_site
     ;;
+  markets)
+    ensure_metatables
+    ensure_markets
+    ;;
   api)
     ensure_metatables
+    ensure_markets
     start_api
     ;;
   tau)
