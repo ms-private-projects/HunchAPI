@@ -19,6 +19,7 @@ from hunch.takes.revisions import TakeRevision
 
 THESIS = "Humanoid robots are coming to every home within the decade."
 NOW = dt.datetime(2026, 10, 25, 9, 0, tzinfo=dt.timezone.utc)
+JOB_RUN_UID = "1a50150c-3316-4d73-8b3b-fe151f21461f"
 
 
 @pytest.fixture
@@ -109,9 +110,14 @@ def test_build_as_a_job_returns_the_job_run(client, monkeypatch) -> None:
     job = SimpleNamespace(
         name=builds.TAKE_BUILD_JOB_NAME, execution_path=builds.TAKE_BUILD_JOB_PATH
     )
-    job.run_job = lambda timeout, command_args: SimpleNamespace(
-        uid="run-1", command_args=command_args
-    )
+    started: list[list[str]] = []
+
+    def run_job(timeout, command_args):
+        started.append(command_args)
+        # Job.run_job answers the platform's run-job body, not a JobRun.
+        return {"message": "Job 'Hunch Take Build' has started.", "job_run_uid": JOB_RUN_UID}
+
+    job.run_job = run_job
     with patch("mainsequence.client.Job") as job_model:
         job_model.filter.return_value = [job]
         built = client.post(f"/v1/takes/{created['uid']}/actions/build")
@@ -120,8 +126,23 @@ def test_build_as_a_job_returns_the_job_run(client, monkeypatch) -> None:
         "execution": "job",
         "take": built.json()["take"],
         "revision": None,
-        "job_run_uid": "run-1",
+        "job_run_uid": JOB_RUN_UID,
     }
+    assert started == [["--take-uid", created["uid"]]]
+
+
+def test_a_started_job_without_a_job_run_fails_the_build(client, monkeypatch) -> None:
+    created = client.post("/v1/takes", json={"title": "Robots", "thesis_text": THESIS}).json()
+    monkeypatch.setenv("HUNCH_BUILD_EXECUTION", "job")
+    job = SimpleNamespace(
+        name=builds.TAKE_BUILD_JOB_NAME, execution_path=builds.TAKE_BUILD_JOB_PATH
+    )
+    job.run_job = lambda timeout, command_args: {"message": "queued"}
+    with patch("mainsequence.client.Job") as job_model:
+        job_model.filter.return_value = [job]
+        built = client.post(f"/v1/takes/{created['uid']}/actions/build")
+    assert built.status_code >= 500
+    assert JOB_RUN_UID not in built.text
 
 
 def test_only_owners_build_and_others_read_published_portfolios(client, local_caller) -> None:

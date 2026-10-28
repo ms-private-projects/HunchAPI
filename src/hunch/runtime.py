@@ -9,7 +9,9 @@ references is resolved by physical name and never attached, so Hunch holds no gr
 ``mainsequence.markets``.
 
 The Markets API is discovered from the workflow's ``MainSequenceMarkets`` branch grant; locally
-``MARKETS_API_URL`` points at the loopback Markets API (``scripts/dev_stack.sh``).
+``MARKETS_API_URL`` points at the loopback Markets API (``scripts/dev_stack.sh``). A hosted Markets
+API scales to zero, so the first call of a process waits up to ``MARKETS_API_WAKE_SECONDS`` for it
+to wake (the client's own discovery waits 30 s; cold starts took minutes in development).
 
 Call ``start_markets_engine()`` once at every process entry point (each Job ``main()``, FastAPI
 startup, the local launcher).
@@ -20,6 +22,7 @@ from __future__ import annotations
 from typing import Any
 
 ROW_MODEL_NAME = "hunch.runtime"
+MARKETS_API_WAKE_SECONDS = 600.0
 
 
 def project_models() -> list[type[Any]]:
@@ -52,13 +55,22 @@ def application_runtime_models() -> list[type[Any]]:
     return [*project_models(), *project_series_models()]
 
 
+def markets_api_client() -> Any:
+    """A client for this Environment's Markets API, waiting for a scaled-to-zero API to wake."""
+    from msm.client import MarketsClient
+    from msm.client.discovery import resolve_markets_api_endpoint
+
+    endpoint = resolve_markets_api_endpoint(timeout=MARKETS_API_WAKE_SECONDS)
+    return MarketsClient(endpoint.url, headers=endpoint.headers)
+
+
 def use_markets_api() -> None:
     """Serve every Markets row class of this process through the Markets API (idempotent)."""
     from msm.api.remote import active_remote_backend, use_remote_backend
     from msm.client import LazyRemoteBackend
 
     if active_remote_backend() is None:
-        use_remote_backend(LazyRemoteBackend())
+        use_remote_backend(LazyRemoteBackend(markets_api_client))
 
 
 def start_markets_engine(
@@ -92,8 +104,10 @@ def markets_runtime() -> Any:
 
 
 __all__ = [
+    "MARKETS_API_WAKE_SECONDS",
     "ROW_MODEL_NAME",
     "application_runtime_models",
+    "markets_api_client",
     "markets_runtime",
     "project_models",
     "start_markets_engine",

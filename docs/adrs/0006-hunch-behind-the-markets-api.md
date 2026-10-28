@@ -36,7 +36,10 @@ needed five to six minutes to start because it attached all of them.
    tables. Locally the runtime now attaches in about a second. The workflow grants `reader` on the
    `MainSequenceMarkets` branch to the API and the nine Jobs that start the engine, not to the
    migration Job or the Agent. The schema gate checks only Hunch's provider: the Markets revision is
-   the Markets deployment's concern, and reading it needs a grant Hunch no longer holds.
+   the Markets deployment's concern, and reading it needs a grant Hunch no longer holds. The
+   hosted Markets API scales to zero; the backend's client (`hunch.runtime.markets_api_client`)
+   waits up to 600 s for it to wake, because the first development build failed after the
+   client's own 30 s while the API was still waking (2026-10-28).
 4. **Reads.** Hunch reads its own values and weights instances directly (`TimeIndexTableRef`).
    The Markets read services join core tables in compiled SQL and would need Markets grants.
 5. **Registries and series, per primitive.**
@@ -85,6 +88,8 @@ out of a namespace needs `tables.update` there.
   none. Hunch reads its own instances, so it does not depend on this.
 - MetaTables: expanded `IN` parameters skip the SQLite bind processors.
 - The per-portfolio progress fallback (ADR 0002, shim 3) is still present.
+- `MarketsClient.from_environment` waits a fixed 30 s for the Markets API to wake, with no setting;
+  a scaled-to-zero API takes minutes. Hunch builds its client with a longer discovery timeout.
 
 ## Consequences
 
