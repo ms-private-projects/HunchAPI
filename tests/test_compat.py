@@ -86,3 +86,38 @@ def test_sqlite_datetime_binds_accept_iso_strings_as_utc_timestamps() -> None:
     )
     stamp = dt.datetime(2026, 10, 27, 20, 0, 0)
     assert process(stamp) == "2026-10-27 20:00:00.000000"
+
+
+def test_json_lists_reach_postgresql_as_json() -> None:
+    import uuid
+
+    import sqlalchemy as sa
+    from psycopg.types.json import Jsonb
+
+    from metatables.api.backend.backends.restricted_sql import parameters_for
+    from metatables.compiled_sql import v1
+
+    install_compat_patches()
+    table = sa.Table(
+        "instruments",
+        sa.MetaData(),
+        sa.Column("figi", sa.String, primary_key=True),
+        sa.Column("themes_json", sa.JSON),
+        sa.Column("metadata_json", sa.JSON),
+    )
+    values = {
+        "figi": "BBG000B9XRY4",
+        "themes_json": ["consumer-devices"],
+        "metadata_json": {"a": 1},
+    }
+    statement = v1.dialect_upsert(table, values, key_columns=["figi"], dialect="postgresql")
+    compiled = v1.compile_sqlalchemy_statement(
+        statement, operation="upsert", data_source_uid=str(uuid.uuid4()), dialect="postgresql"
+    ).statement
+
+    assert compiled.parameter_types == {"themes_json": "json", "metadata_json": "json"}
+    bound = parameters_for(compiled.parameters, compiled.parameter_types, "postgresql")
+    assert isinstance(bound["themes_json"], Jsonb) and bound["themes_json"].obj == [
+        "consumer-devices"
+    ]
+    assert bound["figi"] == "BBG000B9XRY4"
