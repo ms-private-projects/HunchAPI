@@ -63,7 +63,10 @@ needed five to six minutes to start because it attached all of them.
    installs Hunch's SQLite shims, which the Markets API now hits.
 7. **Shims.** Two SQLite-only shims join `hunch.compat`: expanded `IN` parameters that skip the
    UUID bind processors (MetaTables), and ISO-string timestamps written into DateTime columns by the
-   dataset catalog's reconcile (ms-markets). Both are no-ops on PostgreSQL.
+   dataset catalog's reconcile (ms-markets). Both are no-ops on PostgreSQL. A third applies on
+   every dialect: compiled SQL declares `json` for parameters bound to JSON columns, because
+   MetaTables sends PostgreSQL parameters raw and the server binds an undeclared list as an
+   array, which failed the first hosted build (`HunchInstrument.themes_json`, 2026-10-28).
 
 ## Grants
 
@@ -87,6 +90,8 @@ out of a namespace needs `tables.update` there.
 - On SQLite, the multi-portfolio values read looks portfolios up by hyphenated uid strings and finds
   none. Hunch reads its own instances, so it does not depend on this.
 - MetaTables: expanded `IN` parameters skip the SQLite bind processors.
+- MetaTables: `compile_sqlalchemy_statement` declares only temporal `parameter_types`, so a JSON
+  list column write fails on PostgreSQL (`invalid input syntax for type json`).
 - The per-portfolio progress fallback (ADR 0002, shim 3) is still present.
 - `MarketsClient.from_environment` waits a fixed 30 s for the Markets API to wake, with no setting;
   a scaled-to-zero API takes minutes. Hunch builds its client with a longer discovery timeout.

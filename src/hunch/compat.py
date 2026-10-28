@@ -137,6 +137,37 @@ def _patch_sqlite_expanding_uuid_params() -> None:
     v1.build_operation = build_operation
 
 
+def _patch_json_parameter_types() -> None:
+    """mainsequence-metatable 0.1.57-0.1.59: compiled SQL types only temporal parameters.
+
+    ``compile_sqlalchemy_statement`` sends PostgreSQL parameters raw and declares a type only for
+    dates and timestamps. The MetaTables server wraps a value in ``Jsonb`` when its type is
+    ``json`` or the value is a dict, so a JSON *list* (``HunchInstrument.themes_json``, revision
+    weights, proposal legs) reaches psycopg as a PostgreSQL array and the write fails with
+    ``invalid input syntax for type json`` (first hosted build, 2026-10-28). Declare ``json`` for
+    every parameter bound to a JSON column; the server already honours it on every dialect.
+    """
+    from sqlalchemy.types import JSON
+
+    from metatables.compiled_sql import v1
+
+    original = v1._compiled_sqlalchemy_parameter_types
+    if getattr(original, "_hunch_compat", False):
+        return
+
+    def parameter_types(compiled):
+        types = original(compiled)
+        parameters = getattr(compiled, "params", {}) or {}
+        for bind, rendered in (getattr(compiled, "bind_names", {}) or {}).items():
+            if isinstance(getattr(bind, "type", None), JSON):
+                for name in v1._rendered_sqlalchemy_parameter_names(rendered, parameters):
+                    types.setdefault(name, "json")
+        return types
+
+    parameter_types._hunch_compat = True  # type: ignore[attr-defined]
+    v1._compiled_sqlalchemy_parameter_types = parameter_types
+
+
 def _patch_portfolio_progress_fallback() -> None:
     """ms-markets 2.2.12-3.0.2: a portfolio's first run starts after the *table's* latest time index.
 
@@ -185,6 +216,7 @@ def install_compat_patches() -> None:
     _patch_sqlite_uuid_binds()
     _patch_sqlite_expanding_uuid_params()
     _patch_sqlite_datetime_binds()
+    _patch_json_parameter_types()
     _patch_portfolio_progress_fallback()
     _INSTALLED = True
 
