@@ -115,6 +115,11 @@ Leaderboard and Hunch Email Digest run no updater and keep `data_writer`.
   answers 500 (`ModuleNotFoundError`). Hunch builds the XNYS dates and sessions itself and
   writes them with `Calendar.upsert` and `upsert_many`, extending the calendar's horizon last
   (development, 2026-10-28).
+- MetaTables transfers have one 60 s deadline per upload and per read, and a read pages 500 rows
+  by default while the server allows 10,000. On development (a page or chunk takes seconds) the
+  first build's 40k-row bars backfill and the 18k-row evidence read both ran out of it. Hunch
+  bounds a bars run to 6,000 rows of whole sessions and runs again, and reads bars per 20
+  instruments at the largest page (`hunch.market_data`, 2026-10-29).
 
 ## Consequences
 
