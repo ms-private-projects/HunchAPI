@@ -76,6 +76,10 @@ def build_take(
     moment = (now or dt.datetime.now(UTC)).astimezone(UTC)
 
     instruments: list[HunchInstrument] = ensure_universe()
+    # Research reads the stored bars (the quant evidence source). On the first build in an
+    # Environment no bars exist yet and the read fails before the table has a registered update,
+    # so write the universe's bars first; the later call for the basket is then a no-op.
+    ensure_daily_bars(end=moment.date())
     previous = take_revisions(take.uid)
     revision_number = (previous[-1].revision + 1) if previous else 1
     proposal = propose_basket(take, instruments, mode=research_mode, revision=revision_number)
