@@ -1,7 +1,8 @@
-"""A bars backfill is written in bounded runs of whole sessions.
+"""Bars are written in bounded runs of whole sessions and read in batches of instruments.
 
-The MetaTables SDK gives one upload a single deadline; the first build in an Environment writes
-the whole universe's history, which must be split over runs that each fit it.
+The MetaTables SDK gives one upload, and one read, a single deadline; the first build in an
+Environment writes the whole universe's history and research reads it, both split so each
+transfer fits.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ import pandas as pd
 import pytest
 
 from hunch import market_data
-from hunch.market_data import bound_to_sessions, ensure_daily_bars
+from hunch.market_data import bound_to_sessions, ensure_daily_bars, recent_bars
 
 UTC = dt.timezone.utc
 
@@ -98,3 +99,48 @@ def test_ensure_daily_bars_gives_up_after_the_allowed_runs(fake_bars, monkeypatc
     with pytest.raises(RuntimeError, match="allowed runs"):
         ensure_daily_bars()
     assert len(fake_bars.runs) == 3
+
+
+class FakeReader:
+    """A bars node that answers each read with the bars of the instruments asked for."""
+
+    reads: list[dict] = []
+    empty = False
+
+    def configure(self, **kwargs):
+        return self
+
+    def get_df_between_dates(self, **kwargs):
+        type(self).reads.append(kwargs)
+        if type(self).empty:
+            return pd.DataFrame()
+        figis = kwargs["dimension_filters"]["asset_identifier"]
+        frame = _bars(sessions=2, assets=1).reset_index()
+        return pd.concat([frame.assign(asset_identifier=figi) for figi in figis]).set_index(
+            ["time_index", "asset_identifier"]
+        )
+
+
+@pytest.fixture
+def fake_reader(monkeypatch):
+    FakeReader.reads = []
+    FakeReader.empty = False
+    monkeypatch.setattr(market_data, "HunchDailyBars", FakeReader)
+    return FakeReader
+
+
+def test_recent_bars_reads_in_instrument_batches_at_the_largest_page(fake_reader) -> None:
+    figis = [f"FIGI{index}" for index in range(45)] + ["FIGI0"]
+    frame = recent_bars(figis, days=10)
+    batches = [read["dimension_filters"]["asset_identifier"] for read in fake_reader.reads]
+    assert [len(batch) for batch in batches] == [20, 20, 5]
+    assert all(read["page_size"] == 10_000 for read in fake_reader.reads)
+    assert all(read["columns"] == ["close", "volume"] for read in fake_reader.reads)
+    assert len(frame) == 45 * 2
+    assert frame.index.get_level_values("asset_identifier").nunique() == 45
+
+
+def test_recent_bars_without_stored_bars_is_empty(fake_reader) -> None:
+    fake_reader.empty = True
+    assert recent_bars(["FIGI1", "FIGI2"]).empty and len(fake_reader.reads) == 1
+    assert recent_bars([]).empty and len(fake_reader.reads) == 1

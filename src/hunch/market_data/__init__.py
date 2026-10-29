@@ -39,6 +39,12 @@ BARS_START = dt.date.fromisoformat(TRADING_CALENDAR_VALID_FROM)
 # name; the 65-name backfill since 2024 is about 40k rows, written over several runs.
 BARS_MAX_ROWS_PER_RUN = 6_000
 BARS_MAX_RUNS = 40
+# A read pages through the Markets API under the same 60 s deadline, a page holding at most the
+# server's 10,000 rows (the SDK's default page is 500), and that API answers a page in seconds:
+# bars are read per batch of instruments at the largest page (20 names over 400 days are ~5.5k
+# rows), so a whole-universe read is a few requests instead of dozens.
+BARS_READ_BATCH = 20
+BARS_READ_PAGE_SIZE = 10_000
 BAR_COLUMNS = (
     "open_time",
     "open",
@@ -254,13 +260,22 @@ def ensure_daily_bars(
 
 def recent_bars(figis: Sequence[str], *, days: int = 400) -> pd.DataFrame:
     """Stored bars of these instruments over the trailing window, indexed by time and asset."""
-    node = HunchDailyBars().configure(asset_identifiers=figis)
+    unique = list(dict.fromkeys(figis))
+    node = HunchDailyBars().configure(asset_identifiers=unique)
     start = dt.datetime.now(UTC) - dt.timedelta(days=days)
-    return node.get_df_between_dates(
-        start_date=start,
-        dimension_filters={"asset_identifier": list(figis)},
-        columns=["close", "volume"],
-    )
+    frames = [
+        node.get_df_between_dates(
+            start_date=start,
+            dimension_filters={"asset_identifier": unique[index : index + BARS_READ_BATCH]},
+            columns=["close", "volume"],
+            page_size=BARS_READ_PAGE_SIZE,
+        )
+        for index in range(0, len(unique), BARS_READ_BATCH)
+    ]
+    filled = [frame for frame in frames if not frame.empty]
+    if not filled:
+        return frames[0] if frames else pd.DataFrame()
+    return pd.concat(filled).sort_index()
 
 
 def latest_closes(figis: Sequence[str]) -> dict[str, tuple[dt.datetime, float]]:
