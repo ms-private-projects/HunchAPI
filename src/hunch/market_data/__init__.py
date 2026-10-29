@@ -33,6 +33,12 @@ from msm_portfolios.time_index.prices.storage import ExternalPricesStorage
 
 UTC = dt.timezone.utc
 BARS_START = dt.date.fromisoformat(TRADING_CALENDAR_VALID_FROM)
+# The MetaTables SDK gives one upload a single deadline (60 s), and the development MetaTables
+# API persists about 380 rows a second, so a run writes at most this many rows (whole sessions)
+# and `ensure_daily_bars` runs again until nothing is pending. A daily refresh is one row per
+# name; the 65-name backfill since 2024 is about 40k rows, written over several runs.
+BARS_MAX_ROWS_PER_RUN = 6_000
+BARS_MAX_RUNS = 40
 BAR_COLUMNS = (
     "open_time",
     "open",
@@ -139,6 +145,22 @@ def _normalize_bars(frame: pd.DataFrame) -> pd.DataFrame:
     return frame.set_index(["time_index", "asset_identifier"]).sort_index()
 
 
+def bound_to_sessions(
+    frame: pd.DataFrame, max_rows: int = BARS_MAX_ROWS_PER_RUN
+) -> tuple[pd.DataFrame, int]:
+    """The earliest whole sessions of ``frame`` that fit ``max_rows``, and the rows left over.
+
+    Whole sessions keep every instrument's latest bar at the same close, so the next run
+    continues from one session for all of them (the session at the cut is kept complete).
+    """
+    if len(frame) <= max_rows:
+        return frame, 0
+    frame = frame.sort_index()
+    times = frame.index.get_level_values("time_index")
+    kept = frame[times <= times[max_rows - 1]]
+    return kept, len(frame) - len(kept)
+
+
 class HunchDailyBars(AssetIndexedUpdater):
     """Daily bars of the whole Hunch universe, written at the XNYS session close.
 
@@ -153,6 +175,7 @@ class HunchDailyBars(AssetIndexedUpdater):
         self._asset_identifiers: list[str] | None = None
         self._provider: BarsProvider | None = None
         self._end: dt.date | None = None
+        self._rows_pending = 0
         from hunch.series import daily_bars_storage
 
         # Hunch's own instance of the ExternalPricesTS contract (ADR 0006); the output table does
@@ -173,6 +196,11 @@ class HunchDailyBars(AssetIndexedUpdater):
         self._provider = provider or self._provider
         self._end = end or self._end
         return self
+
+    @property
+    def rows_pending(self) -> int:
+        """Rows the last run left for a further run (see ``BARS_MAX_ROWS_PER_RUN``)."""
+        return self._rows_pending
 
     @classmethod
     def _required_output_table(cls) -> type[ExternalPricesStorage]:
@@ -198,7 +226,9 @@ class HunchDailyBars(AssetIndexedUpdater):
         # Keep only the bars of completed sessions.
         now = pd.Timestamp.now(tz="UTC")
         normalized = normalized[normalized.index.get_level_values("time_index") <= now]
-        return self.update_statistics.filter_df_by_latest_value(normalized)
+        new_rows = self.update_statistics.filter_df_by_latest_value(normalized)
+        bounded, self._rows_pending = bound_to_sessions(new_rows)
+        return bounded
 
 
 def ensure_daily_bars(
@@ -207,12 +237,19 @@ def ensure_daily_bars(
     end: dt.date | None = None,
     provider: BarsProvider | None = None,
 ) -> HunchDailyBars:
-    """Bring the daily bars of these instruments (default: the whole universe) up to date."""
-    node = HunchDailyBars().configure(asset_identifiers=figis, provider=provider, end=end)
-    error, _ = node.run(update_tree=False)
-    if error:
-        raise RuntimeError("Writing the daily bars failed.")
-    return node
+    """Bring the daily bars of these instruments (default: the whole universe) up to date.
+
+    A run writes at most ``BARS_MAX_ROWS_PER_RUN`` rows, so a backfill takes several runs; each
+    starts from the table's statistics, which the previous run advanced.
+    """
+    for _attempt in range(BARS_MAX_RUNS):
+        node = HunchDailyBars().configure(asset_identifiers=figis, provider=provider, end=end)
+        error, _ = node.run(update_tree=False)
+        if error:
+            raise RuntimeError("Writing the daily bars failed.")
+        if not node.rows_pending:
+            return node
+    raise RuntimeError("Writing the daily bars did not finish within the allowed runs.")
 
 
 def recent_bars(figis: Sequence[str], *, days: int = 400) -> pd.DataFrame:
@@ -263,6 +300,7 @@ __all__ = [
     "HunchDailyBars",
     "SyntheticBarsProvider",
     "bars_provider_instance",
+    "bound_to_sessions",
     "ensure_daily_bars",
     "last_completed_session_close",
     "latest_closes",

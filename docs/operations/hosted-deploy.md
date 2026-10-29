@@ -147,6 +147,10 @@ found." on `time-index-table-updates/get-or-create/` (ADR 0006). First granted i
    before the API workflow created it). The next push to the site's branch builds it again.
 3. Open the site in Command Center; create, build and activate a practice take; publish it; check
    the leaderboard, notifications and the Assistant (the configuration endpoint reports the Agent).
+   The first build in an Environment backfills the whole universe's daily bars (about 40k rows
+   since 2024) in runs of at most 6,000 rows, because one MetaTables upload has a 60 s deadline
+   and the development MetaTables API persists about 380 rows a second: expect about seven bars
+   runs and a few extra minutes once; later builds write one session per name.
 4. Set `HUNCH_SITE_URL` from the site's link and push; opt a profile into the digest; run
    `hunch-email-digest --user-uid <uid> --dry-run` from the Jobs page, then for real.
 5. When the Alpaca connector API ships its execution capability: set
