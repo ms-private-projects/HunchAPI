@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 from collections.abc import Sequence
+from functools import lru_cache
 from typing import Any
 
 import pandas_market_calendars as mcal
@@ -95,8 +96,15 @@ def ensure_trading_calendar() -> Calendar:
     return _upsert_calendar(valid_to=TRADING_CALENDAR_VALID_TO)
 
 
+@lru_cache(maxsize=32)
+def _table_ref(meta_table_uid: str) -> TimeIndexTableRef:
+    # The catalog row of a series instance changes only with a deploy (a migration), so one
+    # lookup per table serves the process; every read through the reference is a request of its own.
+    return TimeIndexTableRef.from_uid(meta_table_uid)
+
+
 def _series_ref(storage: type[Any]) -> TimeIndexTableRef:
-    return TimeIndexTableRef.from_uid(str(markets_runtime().table(storage).meta_table_uid))
+    return _table_ref(str(markets_runtime().table(storage).meta_table_uid))
 
 
 def external_prices_ref() -> TimeIndexTableRef:
@@ -241,18 +249,31 @@ def portfolio_value_points(
 
 
 def portfolio_latest_weights(identifier: str) -> list[dict[str, Any]]:
-    """The latest weight snapshot of one portfolio, one row per asset, from Hunch's instance."""
+    """The latest weight snapshot of one portfolio, one row per asset, from Hunch's instance.
+
+    One read: the table's identity is the portfolio and the asset, so the last observation per
+    identity is each asset's last row, and the snapshot is the rows at the latest of those times.
+    An asset that left the portfolio has its last row earlier, or a zero weight at that time.
+    """
     ref = _series_ref(portfolio_series()["weights"])
     last = ref.get_last_observation(dimension_filters={"portfolio_identifier": [identifier]})
     latest = _last_time_index(last)
     if latest is None:
         return []
-    frame = ref.get_df_between_dates(
-        start_date=latest,
-        end_date=latest,
-        dimension_filters={"portfolio_identifier": [identifier]},
-    )
-    return _records(frame)
+    if not hasattr(last, "empty"):
+        # A single row or mapping rather than a frame: read the snapshot at its time.
+        frame = ref.get_df_between_dates(
+            start_date=latest,
+            end_date=latest,
+            dimension_filters={"portfolio_identifier": [identifier]},
+        )
+        return _records(frame)
+    return [row for row in _records(last) if _as_datetime(row["time_index"]) == latest]
+
+
+def _as_datetime(value: Any) -> Any:
+    to_pydatetime = getattr(value, "to_pydatetime", None)
+    return to_pydatetime() if to_pydatetime is not None else value
 
 
 def _last_time_index(observation: Any) -> dt.datetime | None:

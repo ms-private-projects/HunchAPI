@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import time
 from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from pathlib import Path
@@ -21,6 +22,11 @@ from hunch.settings import CASH_ASSET_IDENTIFIER, UNIVERSE_CATEGORY_IDENTIFIER
 from msm.api.assets import Asset, AssetCategory, AssetType, OpenFigiDetails
 
 FIXTURE_PATH = Path(__file__).with_name("universe.json")
+# The instrument rows change only when `seed_universe` adds fixture instruments, so a read path
+# (the take weights, every Basket tab load) serves them from one read per process for this long
+# instead of one remote read per request.
+UNIVERSE_CACHE_SECONDS = 300.0
+_universe_cache: tuple[float, list[HunchInstrument]] | None = None
 
 
 @lru_cache(maxsize=1)
@@ -128,6 +134,7 @@ def seed_universe(*, snapshot_time: dt.datetime | None = None) -> list[HunchInst
     # so a failure above leaves the instruments missing and the next build seeds again.
     for row in pending:
         HunchInstrument.upsert(**row)
+    forget_cached_instruments()
     return list_instruments()
 
 
@@ -141,6 +148,25 @@ def ensure_universe() -> list[HunchInstrument]:
     if len(instruments) >= len(universe_fixture()):
         return instruments
     return seed_universe()
+
+
+def cached_instruments(*, now: float | None = None) -> list[HunchInstrument]:
+    """The instrument rows, read at most once per ``UNIVERSE_CACHE_SECONDS`` in this process.
+
+    Read paths use this; anything that writes instruments calls `forget_cached_instruments`.
+    """
+    global _universe_cache
+    moment = time.monotonic() if now is None else now
+    if _universe_cache is not None and moment - _universe_cache[0] < UNIVERSE_CACHE_SECONDS:
+        return list(_universe_cache[1])
+    rows = list_instruments()
+    _universe_cache = (moment, rows)
+    return list(rows)
+
+
+def forget_cached_instruments() -> None:
+    global _universe_cache
+    _universe_cache = None
 
 
 def instruments_by_ticker(instruments: Iterable[HunchInstrument]) -> dict[str, HunchInstrument]:
@@ -160,7 +186,9 @@ __all__ = [
     "FIXTURE_PATH",
     "ensure_asset",
     "ensure_cash_asset",
+    "cached_instruments",
     "ensure_universe",
+    "forget_cached_instruments",
     "instruments_by_figi",
     "instruments_by_ticker",
     "instruments_for_figis",

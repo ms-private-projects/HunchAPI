@@ -120,6 +120,14 @@ Leaderboard and Hunch Email Digest run no updater and keep `data_writer`.
   first build's 40k-row bars backfill and the 18k-row evidence read both ran out of it. Hunch
   bounds a bars run to 6,000 rows of whole sessions and runs again, and reads bars per 20
   instruments at the largest page (`hunch.market_data`, 2026-10-29).
+- The MetaTables SDK fetches `runtime-context` before every operation and caches it nowhere by
+  design (an API restart or a fork must never reuse a source), so each read costs two round
+  trips on the hosted API, about 3 s each on development. Hunch's read paths therefore spend
+  operations, not rows: one catalog lookup per series table per process, the instrument rows
+  cached for five minutes, the weights snapshot in one last-observation read (the physical
+  reader ranks rows per identity coordinate), and the last closes only for rows the graph
+  stored without an execution price (2026-10-30: the take weights fell from ten operations to
+  two on a warm process).
 
 ## Consequences
 

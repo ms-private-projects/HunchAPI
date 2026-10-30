@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 
 from hunch.instruments import HunchInstrument
-from hunch.instruments.services import ensure_universe, instruments_by_figi
+from hunch.instruments.services import cached_instruments, ensure_universe, instruments_by_figi
 from hunch.market_data import ensure_daily_bars, last_completed_session_close, latest_closes
 from hunch.portfolios import HunchPortfolio
 from hunch.portfolios.graph import (
@@ -225,11 +225,16 @@ def take_performance(take: Take) -> list[dict[str, Any]]:
 
 
 def take_weights(take: Take) -> list[dict[str, Any]]:
-    """Latest portfolio weights with instrument identity, heaviest first."""
+    """Latest portfolio weights with instrument identity, heaviest first.
+
+    The Basket tab loads this on every visit, so it reads as little as it can: the weights
+    snapshot, the instrument rows from the process cache, and the last closes only for rows the
+    graph stored without an execution price.
+    """
     rows = portfolio_latest_weights(hunch_portfolio_identifier(take.uid))
-    instruments = instruments_by_figi(ensure_universe())
-    figis = [str(row["asset_identifier"]) for row in rows]
-    closes = latest_closes(figis) if figis else {}
+    instruments = instruments_by_figi(cached_instruments())
+    unpriced = [str(row["asset_identifier"]) for row in rows if row.get("price_current") is None]
+    closes = latest_closes(unpriced) if unpriced else {}
     out = []
     for row in rows:
         instrument = instruments.get(str(row["asset_identifier"]))
