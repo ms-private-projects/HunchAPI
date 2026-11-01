@@ -32,7 +32,6 @@ from msm.api.calendars import Calendar, CalendarDate, CalendarSession, CalendarT
 from msm.api.portfolios import Portfolio
 from msm_portfolios.configuration import (
     BacktestingWeightsConfig,
-    FrontEndDetails,
     PortfolioBuildConfiguration,
     PortfolioConfiguration,
     PortfolioExecutionConfiguration,
@@ -123,14 +122,21 @@ class _FixedPortfolioResolver:
 
 
 class PortfolioGraph:
-    """The nodes of one take's portfolio graph, run in dependency order."""
+    """The nodes of one take's portfolio graph, run in dependency order.
+
+    The rebalance, weights and values updaters hash their whole portfolio configuration into
+    their identity, so it holds only what builds the portfolio and is the same on every build and
+    every refresh of the take. A take title or a build's rationale in it made every build register
+    three new updaters (about twenty MetaTables round trips each, seconds apiece on development)
+    and left the old ones behind. The description reaches the values updater as
+    ``portfolio_description``, which stays outside the identity.
+    """
 
     def __init__(
         self,
         *,
         portfolio: Portfolio,
         signal: HunchBasketSignal,
-        display_name: str,
         description: str | None = None,
         offset_start: dt.datetime | None = None,
     ) -> None:
@@ -167,8 +173,7 @@ class PortfolioGraph:
                 ),
             ),
             portfolio_markets_configuration=PortfolioMarketsConfig(
-                portfolio_name=display_name,
-                front_end_details=FrontEndDetails(description=description) if description else None,
+                portfolio_name=portfolio.unique_identifier,
             ),
         )
         self.values = PortfoliosUpdater(

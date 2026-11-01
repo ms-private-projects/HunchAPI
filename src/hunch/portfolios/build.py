@@ -78,15 +78,19 @@ def build_take(
     instruments: list[HunchInstrument] = ensure_universe()
     # Research reads the stored bars (the quant evidence source). On the first build in an
     # Environment no bars exist yet and the read fails before the table has a registered update,
-    # so write the universe's bars first; the later call for the basket is then a no-op.
-    ensure_daily_bars(end=moment.date())
+    # so write the universe's bars first.
+    universe_figis = [row.figi for row in instruments]
+    ensure_daily_bars(universe_figis, end=moment.date())
     previous = take_revisions(take.uid)
     revision_number = (previous[-1].revision + 1) if previous else 1
     proposal = propose_basket(take, instruments, mode=research_mode, revision=revision_number)
     weights = proposal.weights_by_figi()
 
     universe = take_universe(take.uid, *weights)
-    ensure_daily_bars(universe, end=moment.date())
+    # Only a name the take held that has since left the universe still lacks fresh bars.
+    departed = sorted(set(universe) - set(universe_figis))
+    if departed:
+        ensure_daily_bars(departed, end=moment.date())
     calendar = ensure_trading_calendar()
 
     signal_time = last_completed_session_close(moment)
@@ -116,7 +120,6 @@ def build_take(
     graph = PortfolioGraph(
         portfolio=portfolio_row,
         signal=signal,
-        display_name=take.title,
         description=proposal.rationale_md[:500] or None,
         offset_start=signal_time - dt.timedelta(days=1),
     )
@@ -192,7 +195,6 @@ def refresh_take_portfolio(
     graph = PortfolioGraph(
         portfolio=portfolio_row,
         signal=basket_signal(take.uid, universe),
-        display_name=take.title,
         offset_start=first_signal - dt.timedelta(days=1),
     )
     return graph.run()

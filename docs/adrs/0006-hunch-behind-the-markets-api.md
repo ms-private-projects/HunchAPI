@@ -28,7 +28,14 @@ needed five to six minutes to start because it attached all of them.
    (`hunch__externalpricests__daily`), each funded take's fund holdings and target positions, and
    the simulated venue's account holdings and fills. Each keeps the contract's columns, grain index
    and foreign keys to the Markets registries. Every updater is bound with `output_table=`, which
-   does not change its identity. After every graph run the take registers its values, weights and
+   does not change its identity. The rebalance, weights and values updaters hash their whole
+   portfolio configuration, so the take graph's configuration holds only what builds the
+   portfolio (signal, rebalance strategy, valuation source, fees) and is named by the portfolio's
+   unique identifier: every build and every refresh of a take reaches the same three updaters.
+   The description travels as `portfolio_description`, outside the identity. Until 2026-11-01 the
+   take's title and the build's rationale were in it, so each build registered three new updaters
+   (about twenty MetaTables round trips each) and left the old ones behind, and the refresh used
+   a third set. After every graph run the take registers its values, weights and
    signal instances in the Markets catalog (`PortfolioDatasets.register`, an upsert that
    reconciles), so other readers get the take's frames from Markets.
 3. **Remote backend.** `start_markets_engine` selects the Markets API for every Markets row class
@@ -49,7 +56,10 @@ needed five to six minutes to start because it attached all of them.
 5. **Registries and series, per primitive.**
    - Instruments: Hunch keeps creating its FIGI-keyed assets and OpenFIGI details through the API
      (plan decision 1); snapshots go through `AssetSnapshots.publish`.
-   - Prices: a Hunch-owned bars instance, synthetic locally (plan decision 2).
+   - Prices: a Hunch-owned bars instance, synthetic locally (plan decision 2). A build or a
+     refresh first reads the last stored bar of each instrument (one read) and runs the bars
+     updater only when one lacks the last completed session; a build writes the take's names
+     again only when one has left the universe.
    - Funds and targets: VirtualFund, holdings sets, allocation models, target allocations and
      position sets are Markets rows written through the API; the fund holdings and target positions
      series are Hunch instances (plan decision 3, second option). Markets' by-fund views do not show
@@ -128,6 +138,17 @@ Leaderboard and Hunch Email Digest run no updater and keep `data_writer`.
   reader ranks rows per identity coordinate), and the last closes only for rows the graph
   stored without an execution price (2026-10-30: the take weights fell from ten operations to
   two on a warm process).
+- Platform: the gateway admits every request to a hosted FastAPI release (MetaTables, Markets)
+  through the backend's `/fastapi/jwt/validate/`. Its 60 s reuse is keyed on the full URI, so SDK
+  calls almost never reuse it. On development that backend is the Django `runserver` on the
+  developer's machine behind ngrok: it runs sync views one at a time and reads Cloud SQL in
+  europe-west1 at 22 ms a query, so a validation takes 0.3 s alone and 2.6-4 s on average under
+  a build's own traffic (136 validations, 351 s, in the 18-minute build of 2026-10-29). This sets
+  the seconds per MetaTables round trip noted above.
+- FastAPI releases scale to zero after about 60 s idle (no scale-down delay; Harness Agents keep
+  15 minutes), and a Markets API cold start takes 60-110 s, 40-50 s of it attaching its runtime.
+  A take build calls Markets before its graph and registers the datasets after it, so on
+  development it pays that wake twice (three times before the graph identity was fixed).
 
 ## Consequences
 

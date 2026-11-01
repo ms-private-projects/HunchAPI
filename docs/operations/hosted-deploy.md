@@ -155,7 +155,14 @@ found." on `time-index-table-updates/get-or-create/` (ADR 0006). First granted i
    The first build in an Environment backfills the whole universe's daily bars (about 40k rows
    since 2024) in runs of at most 6,000 rows, because one MetaTables upload has a 60 s deadline
    and the development MetaTables API persists about 380 rows a second: expect about seven bars
-   runs and a few extra minutes once; later builds write one session per name.
+   runs and a few extra minutes once; later builds write one session per name, or nothing when
+   the bars are current.
+   A build's time on development is round trips, not computation: each MetaTables call costs
+   seconds (the platform admits every request through the local backend, ADR 0006), an updater
+   run is about fifteen of them, and the Markets API wakes again (60-110 s) whenever more than a
+   minute passes between Markets calls. Read the JobRun's SDK log lines (`... took N seconds`)
+   against the backend's request log (`docker logs tsorm_web_local`, durations per request)
+   before changing a timeout.
 4. Set `HUNCH_SITE_URL` from the site's link and push; opt a profile into the digest; run
    `hunch-email-digest --user-uid <uid> --dry-run` from the Jobs page, then for real.
 5. When the Alpaca connector API ships its execution capability: set
