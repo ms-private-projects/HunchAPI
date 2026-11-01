@@ -23,8 +23,10 @@ kinds of analysis. The platform facts that bound the design (read from the backe
 - Recorded inference has adapters for the `openai` (Responses and Chat Completions), `anthropic`
   (Messages), `openrouter` (Chat Completions) and Ollama families and for any Organization custom
   endpoint speaking an OpenAI protocol. It refuses `openai-codex` (the subscription OAuth
-  credential the Jobs declare today, which is why research runs in `heuristic` mode) and the new
-  built-in `meta` provider (Muse Spark 1.1 to 1.3, Muse Wonder 1.0, published 2026-10-28).
+  credential the Jobs declared until 2026-11-01, which is why research ran in `heuristic` mode).
+  It refused the new built-in `meta` provider (Muse Spark 1.1 to 1.3, Muse Wonder 1.0, published
+  2026-10-28) until backend commit 4f844bdf8 of 2026-11-01 added Meta as a Chat Completions
+  family.
 - A recorded request has a 60-second transport timeout and a 90-second deadline, and an
   Organization may have four requests active at once.
 - A workload calls recorded inference as itself: the credential must be shared with that workload's
@@ -69,20 +71,20 @@ kinds of analysis. The platform facts that bound the design (read from the backe
 ## Development declaration (2026-11-01)
 
 With the owner's approval, the `hunch` API, `hunch-take-build` and `hunch-daily-review` declare
-the Environment's `openrouter` credential (`custom_id: openrouter`, `policy: user`) and run with
-`HUNCH_RESEARCH_MODE=inference`: the shared selection is `openrouter` /
-`anthropic/claude-sonnet-4.6` / `medium`, the research role keeps it, the review role runs
-`openai/gpt-5.4-mini` and the analysis role `anthropic/claude-haiku-4.5` with `low` thinking. The
-review dispatcher, which reviews in its own process, holds no share and stays deterministic until
-that is decided. Every later push keeps the share, and usage is billed to the credential's owner.
+the Environment's Meta credential (`provider: meta`, `custom_id: meta`, `policy: user`) and run
+with `HUNCH_RESEARCH_MODE=inference`: the shared selection is `meta` / `muse-spark-1.3` /
+`medium`, the research and review roles keep it, and the analysis role reasons at `low` because it
+answers a person synchronously. Meta offers no `off` level. An OpenRouter share declared earlier
+the same day was replaced once the backend accepted Meta; it never completed a call, because that
+key had no credit. The review dispatcher, which reviews in its own process, holds no share and
+stays deterministic until that is decided. Every later push keeps the share, and usage is billed
+to the credential's owner.
 
 ## Consequences
 
 - One deployment can research on one model, review on another and analyse on a third, from the
   workflow file alone.
-- The Jobs' `openai-codex` declaration cannot serve recorded inference; the switch to a provider
-  with an adapter (for example the Environment's `openrouter` credential) is a deliberate access
-  change, not a code change.
-- Meta's models are reachable only as the Agent's conversation model until the platform adds a
-  recorded-inference adapter for `meta`; a custom endpoint pointing at Meta's host would pass the
-  adapter but sidesteps that refusal and is not taken without the platform owner's agreement.
+- Which credential a workload runs on is a declared-access decision, not a code change: the
+  roles only name what the Environment shares with the workload.
+- Hunch's schemas use `maxItems` and `maxLength`, which Meta's documented strict subset does not
+  mention; the first recorded call on Meta decides whether those keywords stay.
