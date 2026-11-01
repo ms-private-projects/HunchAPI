@@ -32,6 +32,14 @@ resources:
       policy: runner
     - key: hunch-portfolio-refresh-dispatcher
       policy: viewer
+    # The analysis role's recorded model calls (the thesis critique) run in this API as its own
+    # workload, on the Environment's `openrouter` credential (custom_id `openrouter`). Declared
+    # 2026-11-01 for development with the owner's approval: every later push keeps the share and
+    # usage is billed to the credential's owner (ADR 0007).
+    model_providers:
+    - provider: openrouter
+      custom_id: openrouter
+      policy: user
   spec:
     source_path: api/app/main.py
     automatic_deployment: true
@@ -68,23 +76,37 @@ resources:
     # review Jobs and exporting the Secret's value as HUNCH_FINNHUB_API_KEY in the runtime.
     - name: HUNCH_RESEARCH_SOURCES
       value: quant
-    # `heuristic` on the API, the build and the review workloads until the Environment's model
-    # provider has a recorded-inference adapter (none on the development backend, ADR 0002);
-    # then `inference`.
+    # `inference` records every research, review and analysis model call through the platform
+    # (ADR 0002); `heuristic` is the deterministic fallback for an Environment without a shared
+    # credential that has a recorded-inference adapter.
     - name: HUNCH_RESEARCH_MODE
-      value: heuristic
+      value: inference
+    # The shared recorded-inference selection every model role starts from (ADR 0007): the
+    # Environment's `openrouter` credential, shared with this workload under
+    # `access.model_providers` above.
+    - name: HUNCH_INFERENCE_PROVIDER
+      value: openrouter
+    - name: HUNCH_INFERENCE_MODEL
+      value: anthropic/claude-sonnet-4.6
+    - name: HUNCH_INFERENCE_THINKING
+      value: medium
+    - name: HUNCH_INFERENCE_CREDENTIAL
+      value: openrouter
     # Model roles (ADR 0007): `research` (builds), `review` (daily reviews) and `analysis` (the
     # analysis-only tools, which run in this API) each select the provider, model, thinking level
-    # and credential of their recorded model calls. Unset, a role uses HUNCH_INFERENCE_PROVIDER,
-    # HUNCH_INFERENCE_MODEL, HUNCH_INFERENCE_THINKING and HUNCH_INFERENCE_CREDENTIAL. The value is
-    # space-separated key=value pairs, for example
-    # `provider=openrouter model=anthropic/claude-sonnet-4.6 thinking=low credential=openrouter`.
-    # Recorded inference accepts providers with an adapter (openai, anthropic, openrouter, a custom
-    # endpoint; neither openai-codex nor meta), and the API's workload must hold `user` on the
-    # credential: declare it under this resource's `access.model_providers` (as the Jobs do)
-    # before setting HUNCH_RESEARCH_MODE=inference here.
+    # and credential of their recorded model calls as space-separated key=value pairs over the
+    # shared selection above. Recorded inference accepts providers with an adapter (openai,
+    # anthropic, openrouter, a custom endpoint; neither openai-codex nor meta). The analysis role
+    # answers a person synchronously within the platform's 90-second deadline, so it runs on a
+    # fast model with light reasoning.
     - name: HUNCH_MODEL_ANALYSIS
-      value: ''
+      value: model=anthropic/claude-haiku-4.5 thinking=low
+    # Reviews a person or the Agent starts run in this API too (the scheduled ones run in the
+    # review Job); builds run as the build Job (HUNCH_BUILD_EXECUTION=job). Same roles as there.
+    - name: HUNCH_MODEL_REVIEW
+      value: model=openai/gpt-5.4-mini thinking=medium
+    - name: HUNCH_MODEL_RESEARCH
+      value: model=anthropic/claude-sonnet-4.6 thinking=medium
 # The branch's one Harness Agent: the Hunch Agent. It reaches every project tool through the
 # `hunch` API's MCP and acts for the person whose request it serves (only an Organization admin's
 # push enables this). It reads no tables itself and never calls a venue connector.
@@ -145,12 +167,11 @@ resources:
     - repository: MainSequenceMarkets
       policy: reader
     model_providers:
-    # Research runs through recorded inference with this credential (custom_id as configured in
-    # the Environment). openai-codex has no recorded-inference adapter on any backend
-    # (2026-11-01, ADR 0007): switch this entry to a provider with one (for example `openrouter`
-    # with its custom_id) before setting HUNCH_RESEARCH_MODE=inference.
-    - provider: openai-codex
-      custom_id: openai-codex
+    # Research runs through recorded inference on the Environment's `openrouter` credential
+    # (openai-codex, declared until 2026-11-01, has no recorded-inference adapter; ADR 0007).
+    # Every later push keeps the share and usage is billed to the credential's owner.
+    - provider: openrouter
+      custom_id: openrouter
       policy: user
   spec:
     name: Hunch Take Build
@@ -162,10 +183,22 @@ resources:
     spot: false
     env_vars:
     - name: HUNCH_RESEARCH_MODE
-      value: heuristic
-    # The research role's model (ADR 0007); unset, the shared HUNCH_INFERENCE_* selection.
+      value: inference
+    # The shared recorded-inference selection every model role starts from (ADR 0007): the
+    # Environment's `openrouter` credential, shared with this workload under
+    # `access.model_providers` above.
+    - name: HUNCH_INFERENCE_PROVIDER
+      value: openrouter
+    - name: HUNCH_INFERENCE_MODEL
+      value: anthropic/claude-sonnet-4.6
+    - name: HUNCH_INFERENCE_THINKING
+      value: medium
+    - name: HUNCH_INFERENCE_CREDENTIAL
+      value: openrouter
+    # The research role's model (ADR 0007): the whole universe and the evidence in one prompt,
+    # so a large context and full reasoning.
     - name: HUNCH_MODEL_RESEARCH
-      value: ''
+      value: model=anthropic/claude-sonnet-4.6 thinking=medium
     task_schedule: null
     scheduled_command_args: []
     automatic_redeployment:
@@ -229,9 +262,9 @@ resources:
     - repository: MainSequenceMarkets
       policy: reader
     model_providers:
-    # Same note as the build Job: openai-codex has no recorded-inference adapter.
-    - provider: openai-codex
-      custom_id: openai-codex
+    # Same share as the build Job (ADR 0007).
+    - provider: openrouter
+      custom_id: openrouter
       policy: user
   spec:
     name: Hunch Daily Review
@@ -243,10 +276,22 @@ resources:
     spot: false
     env_vars:
     - name: HUNCH_RESEARCH_MODE
-      value: heuristic
-    # The review role's model (ADR 0007); unset, the shared HUNCH_INFERENCE_* selection.
+      value: inference
+    # The shared recorded-inference selection every model role starts from (ADR 0007): the
+    # Environment's `openrouter` credential, shared with this workload under
+    # `access.model_providers` above.
+    - name: HUNCH_INFERENCE_PROVIDER
+      value: openrouter
+    - name: HUNCH_INFERENCE_MODEL
+      value: anthropic/claude-sonnet-4.6
+    - name: HUNCH_INFERENCE_THINKING
+      value: medium
+    - name: HUNCH_INFERENCE_CREDENTIAL
+      value: openrouter
+    # The review role's model (ADR 0007): one thesis check per active take per session day, a
+    # small prompt, so a cheaper model.
     - name: HUNCH_MODEL_REVIEW
-      value: ''
+      value: model=openai/gpt-5.4-mini thinking=medium
     task_schedule: null
     scheduled_command_args: []
     automatic_redeployment:
@@ -272,6 +317,8 @@ resources:
     max_runtime_seconds: 3600
     spot: false
     env_vars:
+    # This workload holds no model-provider share, so its scheduled reviews stay deterministic;
+    # declaring `openrouter` here too is a separate access decision (ADR 0007).
     - name: HUNCH_RESEARCH_MODE
       value: heuristic
     task_schedule:

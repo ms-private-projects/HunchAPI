@@ -66,6 +66,16 @@ kinds of analysis. The platform facts that bound the design (read from the backe
    this and leaves the share to an explicit decision, because every push keeps it and the
    credential's owner pays for its use.
 
+## Development declaration (2026-11-01)
+
+With the owner's approval, the `hunch` API, `hunch-take-build` and `hunch-daily-review` declare
+the Environment's `openrouter` credential (`custom_id: openrouter`, `policy: user`) and run with
+`HUNCH_RESEARCH_MODE=inference`: the shared selection is `openrouter` /
+`anthropic/claude-sonnet-4.6` / `medium`, the research role keeps it, the review role runs
+`openai/gpt-5.4-mini` and the analysis role `anthropic/claude-haiku-4.5` with `low` thinking. The
+review dispatcher, which reviews in its own process, holds no share and stays deterministic until
+that is decided. Every later push keeps the share, and usage is billed to the credential's owner.
+
 ## Consequences
 
 - One deployment can research on one model, review on another and analyse on a third, from the
