@@ -78,6 +78,14 @@ kinds of analysis. The platform facts that bound the design (read from the backe
    (`inline`) the sweep reviews in its own process as before. The portfolio refresh dispatcher
    still refreshes in its own process: it calls no model.
 
+## The Agent's model (2026-11-01)
+
+The Hunch Agent itself runs on `meta` / `muse-spark-1.3` / `medium` too, so every model Hunch uses
+is a Muse model. Meta is outside Tau's own catalog: `ms-tau-sdk` 2.0.28 (the pin's new floor)
+builds the provider from the platform's `catalog_definition` on the hydrated credential and the
+OpenAI-compatible transport, and the person the Agent acts for needs a Meta credential in the
+Environment. Until this change the Agent ran `openai-codex` / `gpt-5.6-luna`.
+
 ## Development declaration (2026-11-01)
 
 With the owner's approval, the `hunch` API, `hunch-take-build` and `hunch-daily-review` declare

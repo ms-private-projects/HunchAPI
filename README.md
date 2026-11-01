@@ -130,7 +130,8 @@ critique). Every role starts from `HUNCH_INFERENCE_PROVIDER`, `HUNCH_INFERENCE_M
 `custom_id`); `HUNCH_MODEL_<ROLE>` overrides any of them with space-separated `key=value` pairs,
 for example `HUNCH_MODEL_ANALYSIS="provider=openrouter model=anthropic/claude-haiku-4.5
 thinking=low"`. The Hunch Agent's own conversation model is the Harness Agent declaration in the
-workflow file, not a role. `GET /v1/project-state/configuration` reports every role. The
+workflow file, not a role; development runs it on `meta` / `muse-spark-1.3` as well (`ms-tau-sdk`
+2.0.28 or later, which knows providers outside Tau's catalog). `GET /v1/project-state/configuration` reports every role. The
 scheduled review sweep (`run_hunch_daily_review.py --scheduled`) reviews in its own process by
 default; with `HUNCH_REVIEW_DISPATCH=job` (the hosted dispatcher) it starts one review Job run per
 active take, three at a time, so the reviews run on that Job's credential and in parallel.

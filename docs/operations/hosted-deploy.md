@@ -26,6 +26,9 @@ Platform repository names: `HunchAPI` (this repository), `Hunch` (the site), `al
   `hunch-daily-review` (+dispatcher), `hunch-execution-sync`, `hunch-leaderboard`,
   `hunch-email-digest`. Research and construction are separate Jobs (ADR 0008): the research
   Job holds the model credential, the build Job calls no model.
+- The Agent runs `meta` / `muse-spark-1.3` / `medium` (`llm_provider`, `llm_model`,
+  `llm_thinking`), hydrating the Meta credential of the person it acts for; `ms-tau-sdk` must be
+  at least 2.0.28 for a provider outside Tau's catalog (ADR 0007).
 - Execution steps: image → migrate → deploy API; agent image → deploy Agent.
 
 `Hunch/.mainsequence/workflows/hunch-site.yaml`: the `hunch-site` static site whose
