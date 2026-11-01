@@ -21,7 +21,8 @@ Architecture decisions live under [docs/adrs/](docs/adrs/).
   connector. Hunch never holds a broker credential.
 - **Hunch owns portfolio and execution logic; the connected venue API executes the trades.**
 - **One agent.** The Hunch Agent converses and performs bounded actions through the API's MCP tools.
-  Research, construction and the daily review are deterministic service code in Jobs.
+  Research, construction and the daily review are deterministic service code in Jobs; research
+  and construction are independent steps (ADR 0008).
 
 ## Repository layout
 
@@ -32,16 +33,16 @@ src/hunch/               # the installable package
   profiles/              # HunchUserProfile, HunchUserProfileAccount, account linking (accounts.py)
   instruments/           # HunchInstrument universe (FIGI keyed) over ms-markets Assets
   market_data/           # HunchDailyBars (Hunch's ExternalPricesTS instance) and the bar providers
-  research/              # thesis -> candidates (recorded inference or heuristic) -> guardrails
-  takes/                 # HunchTake, HunchTakeRevision and the take lifecycle
-  portfolios/            # HunchPortfolio, the basket signal, the ms-markets portfolio graph, builds
+  research/              # research: thesis -> candidates (recorded inference or heuristic), kept per take (runs.py); construction: guardrails
+  takes/                 # HunchTake, HunchTakeResearch, HunchTakeRevision and the take lifecycle
+  portfolios/            # HunchPortfolio, the basket signal, the ms-markets portfolio graph, builds from a stored research
   connectors/            # the venue connector port: Alpaca and IBKR HTTP clients, simulated venue
   funding/               # HunchFunding, HunchRebalanceProposal, fund and target ledger, execution
   reviews/               # HunchDailyReview and the daily review
   community/             # leaderboard snapshots and notifications
   channels/              # email digest: composition, delivery, outbox/platform/smtp senders
-  operations/            # build/review orchestration (inline locally, Jobs hosted)
-  migrations/            # `hunch.migrations:migration`, schema gate, namespace move, 0001-0004
+  operations/            # research/build/review orchestration (inline locally, Jobs hosted)
+  migrations/            # `hunch.migrations:migration`, schema gate, namespace move, 0001-0005
   series.py              # Hunch's instances of the ms-markets time-series contracts
   api/app/               # routers, services, schemas, identity, errors, capabilities, mcp_server
   agent_tools.py         # the tool catalog the API serves at /mcp
@@ -105,7 +106,15 @@ PYTHONPATH=src .venv/bin/python -m hunch.migrations.namespace_move --local
 scripts/dev_stack.sh all      # or: markets | api | tau | site
 ```
 
-Local defaults: builds run inline with heuristic research (`HUNCH_RESEARCH_MODE`), and the venue
+A take is built in two independent steps (ADR 0008): `POST /v1/takes/{uid}/actions/research`
+studies the thesis against the target universe and keeps the result as the take's next numbered
+research (candidates with roles and conviction, no weights; `GET .../research` lists them), and
+`POST .../actions/build` constructs the basket from a stored research (`research_uid`, the latest
+by default), publishes it and builds the portfolio, with no model call. Hosted, each step is its
+own Job (`Hunch Take Research`, which holds the model credential, and `Hunch Take Build`, which
+holds none).
+
+Local defaults: research and builds run inline with heuristic research (`HUNCH_RESEARCH_MODE`), and the venue
 connectors are simulated (`HUNCH_CONNECTOR_MODE=simulated`: a paper venue inside Hunch that fills
 orders at the last stored close and keeps its records as a connector does, Markets rows through
 the Markets API and its holdings and fills in its own instances). Set
@@ -115,7 +124,7 @@ to research through recorded inference (ADR 0002 explains the local finding).
 
 Model roles (ADR 0007): in `inference` mode each kind of recorded model call selects its own
 provider, model, thinking level and credential, so one deployment mixes models: `research`
-(builds), `review` (daily reviews) and `analysis` (the analysis-only tools, such as the thesis
+(take research), `review` (daily reviews) and `analysis` (the analysis-only tools, such as the thesis
 critique). Every role starts from `HUNCH_INFERENCE_PROVIDER`, `HUNCH_INFERENCE_MODEL`,
 `HUNCH_INFERENCE_THINKING` and `HUNCH_INFERENCE_CREDENTIAL` (a configured credential's
 `custom_id`); `HUNCH_MODEL_<ROLE>` overrides any of them with space-separated `key=value` pairs,

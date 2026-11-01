@@ -8,7 +8,7 @@ import pytest
 
 from hunch.instruments import HunchInstrument
 from hunch.instruments.services import universe_fixture
-from hunch.research import GuardrailError, apply_guardrails, propose_basket
+from hunch.research import GuardrailError, apply_guardrails, construct_basket, research_take
 from hunch.research.heuristic import heuristic_research, thesis_themes
 from hunch.research.models import CandidateInstrument
 from hunch.takes import Take
@@ -114,12 +114,12 @@ def test_guardrails_hold_cap_overflow_as_cash_and_refuse_thin_baskets() -> None:
         apply_guardrails(candidates[:2], constraints, universe())
 
 
-def test_propose_basket_in_heuristic_mode_is_complete_and_explainable() -> None:
-    proposal = propose_basket(
-        take("Humanoid robots are coming to every home.", cash_buffer=0.08),
-        universe(),
-        mode="heuristic",
-    )
+def test_research_then_construction_in_heuristic_mode_is_complete_and_explainable() -> None:
+    robots = take("Humanoid robots are coming to every home.", cash_buffer=0.08)
+    research = research_take(robots, universe(), mode="heuristic")
+    # Research decides no weight: it names candidates with roles and conviction.
+    assert research.candidates and all(0 <= c.conviction <= 1 for c in research.candidates)
+    proposal = construct_basket(robots, universe(), research)
     assert proposal.weights and abs(proposal.cash_weight - 0.08) < 1e-6
     assert all(0 < w.weight <= 0.15 + 1e-9 for w in proposal.weights)
     assert proposal.research.mode == "heuristic"

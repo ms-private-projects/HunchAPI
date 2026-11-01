@@ -1,4 +1,4 @@
-"""Take revisions: every basket Hunch built for a take, with its evidence."""
+"""Take revisions: every basket Hunch constructed for a take, and the research it came from."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from hunch.metatables import HunchMarketsMetaTableMixin, ProjectStorageNameMixin
 from hunch.profiles import utc_now
 from hunch.settings import PROJECT_NAMESPACE_SLUG
 from hunch.takes import TakeTable
+from hunch.takes.research import TakeResearchTable
 from msm.api.base import MarketsMetaTableRow
 from msm.base import MarketsBase, markets_table_args, new_markets_uid
 
@@ -24,9 +25,10 @@ class TakeRevisionTable(ProjectStorageNameMixin, HunchMarketsMetaTableMixin, Mar
     __project_storage_concept__ = "take_revision"
     __markets_base_identifier__ = "HunchTakeRevision"
     __metatable_description__ = (
-        "One row per revision of a take's basket: the weights Hunch built, the research that "
-        "produced them (candidates, roles, evidence, risks), the rationale shown to people, the "
-        "recorded inference requests behind it, and the signal observation time it published."
+        "One row per revision of a take's basket: the weights Hunch constructed, the stored "
+        "research they came from (and a copy of its candidates, roles, evidence and risks), the "
+        "rationale shown to people, the recorded inference requests behind it, and the signal "
+        "observation time it published."
     )
     __metatable_labels__ = ["hunch", "takes", "revisions", "research"]
     __metatable_extra_hash_components__: ClassVar[dict[str, str]] = {
@@ -46,6 +48,12 @@ class TakeRevisionTable(ProjectStorageNameMixin, HunchMarketsMetaTableMixin, Mar
         nullable=False,
     )
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    research_uid: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(f"{TakeResearchTable.__table__.fullname}.uid", ondelete="SET NULL"),
+        nullable=True,
+        info={"description": "The take research this basket was constructed from (ADR 0008)."},
+    )
     kind: Mapped[str] = mapped_column(
         String(32),
         nullable=False,
@@ -63,7 +71,7 @@ class TakeRevisionTable(ProjectStorageNameMixin, HunchMarketsMetaTableMixin, Mar
         String(32),
         nullable=False,
         default="job",
-        info={"description": "inference, heuristic, agent or user."},
+        info={"description": "job, user or agent (the research row carries the mode)."},
     )
     signal_time_index: Mapped[dt.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -77,11 +85,16 @@ class TakeRevision(MarketsMetaTableRow):
     """Typed row-operation wrapper for ``TakeRevisionTable``."""
 
     __table__: ClassVar[type[TakeRevisionTable]] = TakeRevisionTable
-    __required_tables__: ClassVar[list[type[Any]]] = [TakeTable, TakeRevisionTable]
+    __required_tables__: ClassVar[list[type[Any]]] = [
+        TakeTable,
+        TakeResearchTable,
+        TakeRevisionTable,
+    ]
     __upsert_keys__: ClassVar[tuple[str, ...]] = ("take_uid", "revision")
 
     take_uid: uuid.UUID
     revision: int
+    research_uid: uuid.UUID | None = None
     kind: str
     rationale_md: str = ""
     weights_json: list[dict[str, Any]]

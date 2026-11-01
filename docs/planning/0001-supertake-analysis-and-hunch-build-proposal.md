@@ -367,7 +367,8 @@ draft --build--> built --(practice)--> active_practice --fund--> funding --fille
 | Step | Hunch writes | ms-markets writes |
 | --- | --- | --- |
 | Create | `Take(status=draft)` | none |
-| Build (Job `hunch-take-build`) | `TakeRevision(initial)` with research and weights | `Instrument`/`InstrumentVenueAsset` resolution; `AssetCategory` for the revision; `SignalMetadata` + `FixedWeights` observation into `SignalWeightsTS`; `Portfolio` (calendar XNYS, `signal_uid`) with its `HunchPortfolio` extension row, `PortfolioMetadata`; graph run → `PortfolioWeightsTS`, `PortfoliosTS` from `activated_at` |
+| Research (Job `hunch-take-research`, ADR 0008) | `TakeResearch(number=1)`: candidates, roles, conviction, evidence; no weights | none |
+| Build (Job `hunch-take-build`, from a stored research) | `TakeRevision(initial)` with the weights and a copy of the research | `Instrument`/`InstrumentVenueAsset` resolution; `AssetCategory` for the revision; `SignalMetadata` + `FixedWeights` observation into `SignalWeightsTS`; `Portfolio` (calendar XNYS, `signal_uid`) with its `HunchPortfolio` extension row, `PortfolioMetadata`; graph run → `PortfolioWeightsTS`, `PortfoliosTS` from `activated_at` |
 | Activate practice | `status=active_practice`, `activated_at` | the `PortfoliosTS` series starts |
 | Fund (Alpaca) | `Funding` against a `HunchUserProfileAccount`, `RebalanceProposal(trigger=initial)` | `VirtualFund(account, portfolio)`, `AccountAllocationModel`, `AccountTargetAllocation`, `PositionSet`, `TargetPositionsTS(target_type=portfolio, constant_notional_exposure)`, `OrderManager` |
 | Execute (approved or autopilot) | proposal `submitted` → `filled` | connector publishes `OrdersTS`, `OrderEventsTS`, `TradesTS`; Hunch `execution-sync` updates `VirtualFundHoldingsTS` and asks the connector to capture `AccountHoldingsTS` |
@@ -607,7 +608,8 @@ phase 0 moves it to SDK 9 and the `uv` lock convention of the connectors.
 | Job | Selector | Schedule | Work |
 | --- | --- | --- | --- |
 | `hunch-migrate` | none | execution step before API deploy | apply `hunch.migrations:migration` |
-| `hunch-take-build` | `--take-uid` | on demand (API/agent) | research, construction, signal, portfolio graph |
+| `hunch-take-research` | `--take-uid` | on demand (API/agent) | research of the target universe, stored per take (ADR 0008) |
+| `hunch-take-build` | `--take-uid`, `--research-uid` | on demand (API/agent) | construction from a stored research, signal, portfolio graph |
 | `hunch-portfolio-refresh` | `--take-uid` | dispatcher daily 01:30 UTC (after the Alpaca bars Job at 00:00 UTC) | graph refresh → `PortfoliosTS`, analytics |
 | `hunch-daily-review` | `--take-uid` | dispatcher on NYSE session days, 13:00 UTC | drift, thesis check, proposal or autopilot execution, notifications |
 | `hunch-execution-sync` | `--proposal-uid` or `--scheduled` | every 15 minutes during sessions | order state sync, fills → virtual fund holdings, holdings capture |

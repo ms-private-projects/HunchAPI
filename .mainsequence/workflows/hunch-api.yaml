@@ -24,6 +24,8 @@ resources:
     resources:
     - key: hunch-agent
       policy: user
+    - key: hunch-take-research
+      policy: runner
     - key: hunch-take-build
       policy: runner
     - key: hunch-daily-review
@@ -72,7 +74,7 @@ resources:
     - name: HUNCH_IBKR_CONNECTOR_RELEASE_UID
       value: ''
     # Research sources: `quant` always; add `finnhub` after declaring `access.secrets:
-    # [{name: HUNCH_FINNHUB_API_KEY, policy: value_reader}]` on this API and the build and
+    # [{name: HUNCH_FINNHUB_API_KEY, policy: value_reader}]` on this API and the research and
     # review Jobs and exporting the Secret's value as HUNCH_FINNHUB_API_KEY in the runtime.
     - name: HUNCH_RESEARCH_SOURCES
       value: quant
@@ -102,7 +104,8 @@ resources:
     - name: HUNCH_MODEL_ANALYSIS
       value: model=muse-spark-1.3 thinking=low
     # Reviews a person or the Agent starts run in this API too (the scheduled ones run in the
-    # review Job); builds run as the build Job (HUNCH_BUILD_EXECUTION=job). Same roles as there.
+    # review Job). Hosted (HUNCH_BUILD_EXECUTION=job) research runs as the research Job and
+    # construction as the build Job, which calls no model (ADR 0008). Same roles as there.
     - name: HUNCH_MODEL_REVIEW
       value: model=muse-spark-1.3 thinking=medium
     - name: HUNCH_MODEL_RESEARCH
@@ -155,12 +158,17 @@ resources:
     automatic_redeployment:
       enabled: true
       tag_regex: null
-# Builds, refreshes and reviews run as one shared Job per kind, selected by `--take-uid` (the API,
-# the Agent through the API, and the dispatchers start them). A Job cannot hold `runner` on
-# itself, so a dispatcher Job owns each schedule: the refresh dispatcher still refreshes in its
+# Research, builds, refreshes and reviews run as one shared Job per kind, selected by `--take-uid`
+# (the API, the Agent through the API, and the dispatchers start them). A Job cannot hold `runner`
+# on itself, so a dispatcher Job owns each schedule: the refresh dispatcher still refreshes in its
 # own process; the review dispatcher starts one review Job run per active take
 # (HUNCH_REVIEW_DISPATCH=job, ADR 0007), so the reviews run on the review Job's model credential.
-- key: hunch-take-build
+#
+# Research and portfolio construction are independent steps with their own Jobs (ADR 0008): the
+# research Job studies the target universe on the research role's model and stores a numbered
+# research; the build Job constructs the basket from a stored research and calls no model, so it
+# holds no model credential.
+- key: hunch-take-research
   kind: job
   access:
     branches:
@@ -169,16 +177,16 @@ resources:
     - repository: MainSequenceMarkets
       policy: reader
     model_providers:
-    # Research runs through recorded inference on the Environment's Meta credential (ADR 0007;
-    # openai-codex, declared until 2026-11-01, has no recorded-inference adapter). Every later
-    # push keeps the share and usage is billed to the credential's owner.
+    # Research runs through recorded inference on the Environment's Meta credential (ADR 0007).
+    # Declared on the build Job from 2026-11-01 and moved here with ADR 0008, when research became
+    # this Job. Every later push keeps the share and usage is billed to the credential's owner.
     - provider: meta
       custom_id: meta
       policy: user
   spec:
-    name: Hunch Take Build
-    description: Research one take, apply its constraints, publish its basket and build its portfolio (--take-uid).
-    execution_path: src/jobs/run_hunch_take_build.py
+    name: Hunch Take Research
+    description: Research one take's thesis against the target universe and keep the result as its next numbered research (--take-uid); decides no weight.
+    execution_path: src/jobs/run_hunch_take_research.py
     cpu_request: '0.5'
     memory_request: '1'
     max_runtime_seconds: 1800
@@ -201,6 +209,28 @@ resources:
     # Muse Spark 1.3 has a 1,048,576-token context.
     - name: HUNCH_MODEL_RESEARCH
       value: model=muse-spark-1.3 thinking=medium
+    task_schedule: null
+    scheduled_command_args: []
+    automatic_redeployment:
+      enabled: true
+      tag_regex: null
+- key: hunch-take-build
+  kind: job
+  access:
+    branches:
+    - repository: MetaTables
+      policy: reader
+    - repository: MainSequenceMarkets
+      policy: reader
+  spec:
+    name: Hunch Take Build
+    description: Construct one take's basket from a stored research (--take-uid, optionally --research-uid), publish it and build its portfolio; calls no model.
+    execution_path: src/jobs/run_hunch_take_build.py
+    cpu_request: '0.5'
+    memory_request: '1'
+    max_runtime_seconds: 1800
+    spot: false
+    env_vars: []
     task_schedule: null
     scheduled_command_args: []
     automatic_redeployment:

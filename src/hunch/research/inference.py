@@ -222,11 +222,15 @@ def inference_research(
     take: Take,
     instruments: Sequence[HunchInstrument],
     *,
-    revision: int = 1,
+    number: int = 1,
     client: Any | None = None,
     evidence: Sequence[Evidence] = (),
 ) -> ResearchOutput:
-    """One recorded completion; raises ``ResearchError`` when no usable answer comes back."""
+    """One recorded completion; raises ``ResearchError`` when no usable answer comes back.
+
+    `number` is the research's ordinal for the take (ADR 0008): the recorded call is idempotent
+    per research, and the number is in its metadata.
+    """
     constraints = TakeConstraints.model_validate(take.constraints_json or {})
     tradable = [row for row in instruments if row.is_tradable]
     if not tradable:
@@ -236,8 +240,8 @@ def inference_research(
         user=_user_prompt(take, constraints, tradable, evidence),
         schema=response_schema([row.ticker for row in tradable]),
         operation="hunch-take-research",
-        metadata={"take_uid": str(take.uid), "revision": revision},
-        idempotency_prefix=f"hunch-take-{take.uid}-revision-{revision}",
+        metadata={"take_uid": str(take.uid), "research_number": number},
+        idempotency_prefix=f"hunch-take-{take.uid}-research-{number}",
         client=client,
     )
     content = completion.content
@@ -261,6 +265,8 @@ def inference_research(
         inference_request_uids=[completion.request_uid] if completion.request_uid else [],
         conversation_uid=completion.conversation_uid,
         evidence=list(evidence),
+        provider=completion.provider,
+        model=completion.model,
     )
 
 

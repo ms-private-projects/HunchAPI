@@ -33,6 +33,7 @@ def test_project_tables_live_in_the_hunch_app_segment() -> None:
         "hunch__user_profile_account",
         "hunch__instrument",
         "hunch__take",
+        "hunch__take_research",
         "hunch__take_revision",
         "hunch__portfolio",
         "hunch__funding",

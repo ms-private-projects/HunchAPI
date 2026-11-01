@@ -44,7 +44,7 @@
       ],
       "examples": [
         "I think humanoid robots are coming to every home. Make this a take with a 10% cash buffer.",
-        "Critique my robots take before I build it.",
+        "Critique my robots take before I research it.",
         "Publish my robots take.",
         "Fork the top take on the leaderboard for me."
       ],
@@ -52,8 +52,8 @@
     },
     {
       "id": "building-and-performance",
-      "name": "Building A Take And Reading Its Portfolio",
-      "description": "Build a take's basket from its thesis, activate it as a practice take, and read its revisions, weights and performance.",
+      "name": "Researching And Building A Take And Reading Its Portfolio",
+      "description": "Research a take's thesis against the target universe, build its basket from a stored research, activate it as a practice take, and read its research, revisions, weights and performance.",
       "tags": [
         "hunch",
         "portfolios",
@@ -61,7 +61,8 @@
         "performance"
       ],
       "examples": [
-        "Build my robots take.",
+        "Research my robots take and show me the candidates.",
+        "Build my robots take from its latest research.",
         "Show me the weights and how my take has done since activation."
       ],
       "path": ".agents/skills/mcp_tools/hunch-building-and-performance/SKILL.md"

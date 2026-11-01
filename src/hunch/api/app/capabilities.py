@@ -82,17 +82,29 @@ CAPABILITIES: tuple[Capability, ...] = (
         key="portfolios",
         name="Hunch Portfolios",
         purpose=(
-            "Research a take, apply its constraints, publish the basket as an ms-markets signal "
-            "and value it with the ms-markets portfolio graph."
+            "Two independent steps (ADR 0008): research a take's thesis against the target "
+            "universe and keep the result, then construct its basket from a stored research "
+            "under its constraints, publish it as an ms-markets signal and value it with the "
+            "ms-markets portfolio graph."
         ),
         contents=(
+            "HunchTakeResearch (candidates, no weights)",
             "HunchPortfolio (ms-markets Portfolio extension)",
             "SignalWeightsTS",
             "PortfolioWeightsTS",
             "PortfoliosTS",
             "ExternalPricesTS daily bars",
         ),
-        actions=("build", "activate practice", "refresh", "revisions", "weights", "performance"),
+        actions=(
+            "research",
+            "read research",
+            "build from a research",
+            "activate practice",
+            "refresh",
+            "revisions",
+            "weights",
+            "performance",
+        ),
         surfaces=("api", "mcp", "job"),
     ),
     Capability(

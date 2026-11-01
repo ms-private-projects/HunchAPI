@@ -22,8 +22,10 @@ Platform repository names: `HunchAPI` (this repository), `Hunch` (the site), `al
 `HunchAPI/.mainsequence/workflows/hunch-api.yaml` (one unscoped file, both Environments):
 
 - `hunch` FastAPI (`/mcp` enabled), `hunch-agent` Harness Agent, Jobs `hunch-migrate`,
-  `hunch-take-build`, `hunch-portfolio-refresh` (+dispatcher), `hunch-daily-review`
-  (+dispatcher), `hunch-execution-sync`, `hunch-leaderboard`, `hunch-email-digest`.
+  `hunch-take-research`, `hunch-take-build`, `hunch-portfolio-refresh` (+dispatcher),
+  `hunch-daily-review` (+dispatcher), `hunch-execution-sync`, `hunch-leaderboard`,
+  `hunch-email-digest`. Research and construction are separate Jobs (ADR 0008): the research
+  Job holds the model credential, the build Job calls no model.
 - Execution steps: image → migrate → deploy API; agent image → deploy Agent.
 
 `Hunch/.mainsequence/workflows/hunch-site.yaml`: the `hunch-site` static site whose
@@ -39,12 +41,12 @@ Platform repository names: `HunchAPI` (this repository), `Hunch` (the site), `al
 | `hunch` API | `HUNCH_CONNECTOR_MODE` | `live` | set |
 | `hunch` API, review and sync Jobs | `HUNCH_ALPACA_CONNECTOR_RELEASE_UID` | the `alpaca` FastAPI release UID in that Environment | after the Alpaca connector API is deployed there (not yet, 2026-10-25) |
 | same | `HUNCH_IBKR_CONNECTOR_RELEASE_UID` | the IBKR API release UID | after that repository publishes its API (today only Jobs) |
-| `hunch` API, build and review Jobs | `HUNCH_RESEARCH_MODE` | `inference` on development since 2026-11-01 (the Environment's Meta credential); `heuristic` where no shared credential with a recorded-inference adapter exists | set |
+| `hunch` API, research and review Jobs | `HUNCH_RESEARCH_MODE` | `inference` on development since 2026-11-01 (the Environment's Meta credential); `heuristic` where no shared credential with a recorded-inference adapter exists | set |
 | `hunch-daily-review-dispatcher` | `HUNCH_REVIEW_DISPATCH` | `job`: one `Hunch Daily Review` run per active take, three at a time, on the review Job's credential (no share on the dispatcher); `inline` reviews in the dispatcher's own process with `HUNCH_RESEARCH_MODE` | set |
-| `hunch` API, build and review Jobs | `HUNCH_RESEARCH_SOURCES` | `quant`, or `quant,finnhub` with the Secret below | optional |
-| `hunch` API, build and review Jobs | `HUNCH_INFERENCE_PROVIDER`, `HUNCH_INFERENCE_MODEL`, `HUNCH_INFERENCE_THINKING`, `HUNCH_INFERENCE_CREDENTIAL` | the shared selection every model role starts from: development uses `meta`, `muse-spark-1.3`, `medium`, `meta`. The provider needs a recorded-inference adapter (`openai`, `anthropic`, `openrouter`, `meta` since backend commit 4f844bdf8, a custom endpoint; not `openai-codex`) | set |
-| `hunch-take-build` / `hunch-daily-review` / `hunch` API | `HUNCH_MODEL_RESEARCH` / `HUNCH_MODEL_REVIEW` / `HUNCH_MODEL_ANALYSIS` | per-role overrides as `key=value` pairs (`provider`, `model`, `thinking`, `credential`), ADR 0007; development: all three on `muse-spark-1.3`, research and review `medium`, analysis `low` (Meta has no `off`) | set |
-| `hunch` API, `hunch-take-build`, `hunch-daily-review` | `access.model_providers` | the Meta credential (`provider: meta`, `custom_id: meta`, `policy: user`), declared 2026-11-01 on development with the owner's approval; the Environment needs a stored Meta key, and a new Environment needs the same decision | before `HUNCH_RESEARCH_MODE=inference` |
+| `hunch` API, research and review Jobs | `HUNCH_RESEARCH_SOURCES` | `quant`, or `quant,finnhub` with the Secret below | optional |
+| `hunch` API, research and review Jobs | `HUNCH_INFERENCE_PROVIDER`, `HUNCH_INFERENCE_MODEL`, `HUNCH_INFERENCE_THINKING`, `HUNCH_INFERENCE_CREDENTIAL` | the shared selection every model role starts from: development uses `meta`, `muse-spark-1.3`, `medium`, `meta`. The provider needs a recorded-inference adapter (`openai`, `anthropic`, `openrouter`, `meta` since backend commit 4f844bdf8, a custom endpoint; not `openai-codex`) | set |
+| `hunch-take-research` / `hunch-daily-review` / `hunch` API | `HUNCH_MODEL_RESEARCH` / `HUNCH_MODEL_REVIEW` / `HUNCH_MODEL_ANALYSIS` | per-role overrides as `key=value` pairs (`provider`, `model`, `thinking`, `credential`), ADR 0007; development: all three on `muse-spark-1.3`, research and review `medium`, analysis `low` (Meta has no `off`) | set |
+| `hunch` API, `hunch-take-research`, `hunch-daily-review` | `access.model_providers` | the Meta credential (`provider: meta`, `custom_id: meta`, `policy: user`), declared 2026-11-01 on development with the owner's approval (on the build Job until ADR 0008 moved research to its own Job); the Environment needs a stored Meta key, and a new Environment needs the same decision. `hunch-take-build` holds none: construction calls no model | before `HUNCH_RESEARCH_MODE=inference` |
 | `hunch-email-digest` Job | `HUNCH_EMAIL_SENDER` | `platform` | set |
 | `hunch-email-digest` Job | `HUNCH_SITE_URL` | the site's Command Center link in that Environment (`.../app/links/<site uid>`) | after the first site deploy |
 | `hunch-agent` | provider / model / thinking | the Environment's model-provider credential | before the first push |
@@ -86,10 +88,10 @@ fix, an empty commit on the branch re-runs the whole pipeline. The site build fa
   a release `viewer`, which may call the release). The runtime then resolves the release's RPC URL
   and token through `resolve-runtime-access` (`hunch.connectors.http.ReleaseHTTPClient`).
 - Finnhub: `access.secrets: [{name: HUNCH_FINNHUB_API_KEY, policy: value_reader}]` on the API and
-  the build and review Jobs, and the Secret's value exported as `HUNCH_FINNHUB_API_KEY`.
+  the research and review Jobs, and the Secret's value exported as `HUNCH_FINNHUB_API_KEY`.
 - Email: the `platform` sender calls `Notification.send(include_email=True)` as the Job workload;
   confirm with the platform team that a workload may notify a person by email.
-- Recorded inference: the API, the build Job and the review Job declare `model_providers` for
+- Recorded inference: the API, the research Job and the review Job declare `model_providers` for
   the Environment's Meta credential (the adapters cover `openai`, `anthropic`, `openrouter`,
   `meta`, Ollama and custom endpoints, not `openai-codex`; ADR 0007). The share needs the
   credential's owner to approve it per Environment and a Meta key stored there; where either is
@@ -106,7 +108,7 @@ API, which the workflow's `MainSequenceMarkets` branch grant lets each workload 
 | --- | --- | --- |
 | `hunch-migrate` | `editor` (automatic) | `editor` until its first 0004 run has moved the tables, then none |
 | `hunch` API and every other Hunch Job, dispatchers included | `data_writer` | none |
-| `hunch` API, Hunch Take Build, Hunch Portfolio Refresh, Hunch Daily Review and Hunch Execution Sync | also `editor` on each of the ten series tables (below) | none |
+| `hunch` API, Hunch Take Research, Hunch Take Build, Hunch Portfolio Refresh, Hunch Daily Review and Hunch Execution Sync | also `editor` on each of the ten series tables (below) | none |
 | the Markets API workload | `data_viewer` on `hunch__portfoliosts__takes`, `hunch__portfolioweightsts__takes` and `hunch__signalweightsts__takes` only (catalog reconcile) | owner side |
 | a person or a Team of people | `owner` | as before |
 
@@ -116,7 +118,9 @@ mixins), so the API and the Jobs held `data_writer` there and `data_viewer` on `
 blocks the API and the Agent and, through them, the site build. Workload User UIDs are on each Job
 (`GET /api/v1/jobs/?code_repository_branch_uid=<branch uid>`) and each release
 (`workload_user_uid`). A recreated Job or release gets a new workload User and needs its grant
-again. First granted in development on 2026-10-25.
+again. First granted in development on 2026-10-25. `Hunch Take Research` (ADR 0008) is a new
+workload: its `data_writer` on `hunch` and `editor` on `hunch__externalpricests__daily` (it writes
+the universe's bars before the quant evidence reads them) follow its first push.
 
 The workloads that run updaters also hold table-level `editor` on the ten series instances
 (`hunch__externalpricests__daily`, `hunch__signalweightsts__takes`, `hunch__portfoliosts__takes`,

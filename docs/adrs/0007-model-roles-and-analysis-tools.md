@@ -38,8 +38,9 @@ kinds of analysis. The platform facts that bound the design (read from the backe
 
 ## Decisions
 
-1. **Model roles.** Each kind of recorded model call is a role: `research` (a take build),
-   `review` (the daily thesis check) and `analysis` (analysis-only tools). `hunch.settings.model_role`
+1. **Model roles.** Each kind of recorded model call is a role: `research` (a take research,
+   its own step since ADR 0008), `review` (the daily thesis check) and `analysis` (analysis-only
+   tools). `hunch.settings.model_role`
    resolves a role to a `ModelSelection` (provider, model, thinking, credential): the shared
    `HUNCH_INFERENCE_*` values, then the role's `HUNCH_MODEL_<ROLE>` override as space-separated
    `key=value` pairs (`provider`, `model`, `thinking`, `credential`), so model identifiers may

@@ -38,12 +38,14 @@ def project_models() -> list[type[Any]]:
     from hunch.profiles import project_profile_models
     from hunch.reviews import project_review_models
     from hunch.takes import project_take_models
+    from hunch.takes.research import project_research_models
     from hunch.takes.revisions import project_revision_models
 
     return [
         *project_profile_models(),
         *project_instrument_models(),
         *project_take_models(),
+        *project_research_models(),
         *project_revision_models(),
         *project_portfolio_models(),
         *project_funding_models(),

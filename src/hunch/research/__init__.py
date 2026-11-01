@@ -1,8 +1,12 @@
-"""Research: from a thesis to candidate instruments with roles, then to guarded weights.
+"""Research and construction: two independent steps from a thesis to a basket (ADR 0008).
 
-The model proposes; code decides. ``research_take`` returns candidates and a rationale from the
-configured mode (recorded inference, or the deterministic heuristic), and ``apply_guardrails``
-turns them into weights that respect the person's constraints.
+The model proposes; code decides. ``research_take`` studies the target universe and returns the
+candidate instruments with their roles and conviction, a brief and a rationale, from the
+configured mode (recorded inference on the `research` role, or the deterministic heuristic); it
+decides no weight. ``construct_basket`` is portfolio construction: it turns one research's
+candidates into weights that respect the person's constraints through ``apply_guardrails``, with
+no model call. ``hunch.research.runs`` stores each research; ``hunch.portfolios.build`` builds the
+portfolio from a stored one.
 """
 
 from __future__ import annotations
@@ -31,9 +35,13 @@ def research_take(
     instruments: Sequence[HunchInstrument],
     *,
     mode: str | None = None,
-    revision: int = 1,
+    number: int = 1,
 ) -> ResearchOutput:
-    """Candidates and rationale for the take, in the requested or configured mode."""
+    """Candidates and rationale for the take, in the requested or configured mode.
+
+    `number` is the research's ordinal for the take; it makes the recorded call idempotent per
+    research and appears in its metadata.
+    """
     selected = mode or research_mode()
     tradable = [row for row in instruments if row.is_tradable]
     evidence: list[Evidence] = collect_evidence(tradable, keywords_for(take))
@@ -41,7 +49,7 @@ def research_take(
         return heuristic_research(take, instruments, evidence=evidence)
     from hunch.research.inference import inference_research
 
-    return inference_research(take, instruments, revision=revision, evidence=evidence)
+    return inference_research(take, instruments, number=number, evidence=evidence)
 
 
 def keywords_for(take: Take) -> list[str]:
@@ -52,16 +60,18 @@ def keywords_for(take: Take) -> list[str]:
     ]
 
 
-def propose_basket(
+def construct_basket(
     take: Take,
     instruments: Sequence[HunchInstrument],
-    *,
-    mode: str | None = None,
-    revision: int = 1,
+    research: ResearchOutput,
 ) -> BasketProposal:
-    """Research the take and apply its constraints: the complete, explainable basket."""
+    """Portfolio construction: the research's candidates under the take's constraints.
+
+    Deterministic and explainable: exclusions, tradability, leveraged products, the position
+    count, the single-name cap and the cash buffer are enforced by the guardrails, which report
+    every decision. No model is called.
+    """
     constraints = TakeConstraints.model_validate(take.constraints_json or {})
-    research = research_take(take, instruments, mode=mode, revision=revision)
     weights, notes = apply_guardrails(research.candidates, constraints, instruments)
     return BasketProposal(
         weights=weights,
@@ -81,6 +91,6 @@ __all__ = [
     "ResearchError",
     "ResearchOutput",
     "apply_guardrails",
-    "propose_basket",
+    "construct_basket",
     "research_take",
 ]

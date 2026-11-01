@@ -43,7 +43,7 @@ one take they own or that is public. Limits are 1–100 and offsets are multiple
 and answers with an analysis only: a summary, how clearly the thesis is stated, each claim with
 the weight it can carry, the assumptions, counterarguments, risks, conditions that would show the
 thesis wrong, tensions with the constraints, and questions that would sharpen it. Nothing changes.
-The call runs on the analysis model and can take a minute. Offer it before a build or before
+The call runs on the analysis model and can take a minute. Offer it before a research or before
 publishing, relay the questions and the suggested conditions in the person's words, and let them
 decide what to edit. When the answer's `mode` is `heuristic`, it is a deterministic reading of the
 structure only: say so, and do not present it as a judgement of the claims.
@@ -71,5 +71,6 @@ asks, and confirm the address back to them.
 
 ## Beyond authoring
 
-Building and performance, linked accounts and funding, proposals, reviews, the leaderboard and
-notifications have their own skills; read the matching one before those workflows.
+Research and building (two independent steps: research the target universe, then construct the
+basket from a stored research), performance, linked accounts and funding, proposals, reviews, the
+leaderboard and notifications have their own skills; read the matching one before those workflows.

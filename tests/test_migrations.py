@@ -53,12 +53,13 @@ def test_provider_identity_and_version_location() -> None:
 
 def test_provider_loads_by_reference_with_a_single_head() -> None:
     loaded = load_provider("hunch.migrations:migration")
-    assert code_head_revision(script_directory(loaded)) == "0004"
+    assert code_head_revision(script_directory(loaded)) == "0005"
 
 
 def test_revisions_create_every_project_table_with_its_model_columns() -> None:
     sql = "\n".join(
-        _offline_sql(_revision_module(name).upgrade) for name in ("0001", "0002", "0003", "0004")
+        _offline_sql(_revision_module(name).upgrade)
+        for name in ("0001", "0002", "0003", "0004", "0005")
     )
     created = set(re.findall(r"CREATE TABLE (\w+) \(", sql))
     assert created == PROJECT_TABLE_NAMES
@@ -67,6 +68,8 @@ def test_revisions_create_every_project_table_with_its_model_columns() -> None:
         block = re.search(rf"CREATE TABLE {table.name} \((.*?)\n\);", sql, re.S)
         assert block is not None, table.name
         declared = {line.strip().split(" ")[0] for line in block.group(1).splitlines()}
+        # A later revision may add a column (revisions add first and drop later).
+        declared |= set(re.findall(rf"ALTER TABLE {table.name} ADD COLUMN (\w+)", sql))
         assert {column.name for column in table.columns} <= declared, table.name
         for constraint in table.foreign_key_constraints:
             assert constraint.name in sql, (table.name, constraint.name)
@@ -76,6 +79,7 @@ def test_revisions_create_every_project_table_with_its_model_columns() -> None:
 
 def test_downgrades_drop_every_project_table() -> None:
     sql = "\n".join(
-        _offline_sql(_revision_module(name).downgrade) for name in ("0004", "0003", "0002", "0001")
+        _offline_sql(_revision_module(name).downgrade)
+        for name in ("0005", "0004", "0003", "0002", "0001")
     )
     assert set(re.findall(r"DROP TABLE (\w+);", sql)) == PROJECT_TABLE_NAMES

@@ -203,14 +203,63 @@ class ArchiveRequest(BaseModel):
     confirmation: str = Field(min_length=1, description="Exactly: DELETE <take uid>")
 
 
-# Building, revisions, weights, performance ------------------------------------------------------
+# Research, building, revisions, weights, performance --------------------------------------------
+
+
+class ResearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    research_mode: Literal["inference", "heuristic"] | None = Field(
+        default=None, description="Override the configured research mode for this research."
+    )
+
+
+class ResearchResource(BaseModel):
+    """One research of a take's target universe (ADR 0008): candidates, no weights."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    uid: str
+    take_uid: str
+    number: int = Field(description="1, 2, ... per take, in research order.")
+    mode: str
+    brief: dict[str, Any] = Field(
+        description="The thesis parsed: claims, beneficiaries, losers, keywords, horizon."
+    )
+    candidates: list[dict[str, Any]] = Field(
+        description="Candidate instruments: ticker, role, case, risks, conviction, citations."
+    )
+    rationale_md: str
+    evidence: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Numbered evidence items (id, ticker, kind, title, summary, source, url, "
+        "published_at) the rationale and candidates cite.",
+    )
+    provider: str | None = None
+    model: str | None = None
+    inference_request_uids: list[str] = Field(default_factory=list)
+    conversation_uid: str | None = None
+    created_by: str
+    created_at: dt.datetime | None = None
+
+
+class ResearchResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    execution: Literal["inline", "job"]
+    take: TakeResource
+    research: ResearchResource | None = None
+    job_run_uid: str | None = Field(
+        default=None, description="The JobRun to poll when the research runs as a platform Job."
+    )
 
 
 class BuildRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    research_mode: Literal["inference", "heuristic"] | None = Field(
-        default=None, description="Override the configured research mode for this build."
+    research_uid: str | None = Field(
+        default=None,
+        description="The take's research to construct from; its latest research by default.",
     )
 
 
@@ -220,6 +269,9 @@ class RevisionResource(BaseModel):
     uid: str
     take_uid: str
     revision: int
+    research_uid: str | None = Field(
+        default=None, description="The research this basket was constructed from."
+    )
     kind: str
     rationale_md: str
     weights: list[dict[str, Any]]
