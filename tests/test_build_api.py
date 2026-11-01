@@ -199,16 +199,24 @@ def _platform_jobs() -> tuple[dict[str, SimpleNamespace], list[tuple[str, list[s
 def test_research_and_build_as_jobs_return_the_job_run(client, monkeypatch) -> None:
     created = client.post("/v1/takes", json={"title": "Robots", "thesis_text": THESIS}).json()
     uid = created["uid"]
-    research_uid = str(uuid.uuid4())
     monkeypatch.setenv("HUNCH_BUILD_EXECUTION", "job")
     jobs, started = _platform_jobs()
+    # Two stored research rows: a build pins the one it starts from, the latest by default.
+    first = _fake_research(uid).research
+    latest = _fake_research(uid).research
     with patch("mainsequence.client.Job") as job_model:
         job_model.filter.side_effect = lambda name, timeout: [jobs[name]]
         researched = client.post(
             f"/v1/takes/{uid}/actions/research", json={"research_mode": "heuristic"}
         )
         built = client.post(f"/v1/takes/{uid}/actions/build")
-        rebuilt = client.post(f"/v1/takes/{uid}/actions/build", json={"research_uid": research_uid})
+        rebuilt = client.post(
+            f"/v1/takes/{uid}/actions/build", json={"research_uid": str(first.uid)}
+        )
+        stranger = client.post(
+            f"/v1/takes/{uid}/actions/build", json={"research_uid": str(uuid.uuid4())}
+        )
+    assert stranger.status_code == 404, stranger.text
     assert researched.status_code == 200, researched.text
     assert researched.json() == {
         "execution": "job",
@@ -226,13 +234,26 @@ def test_research_and_build_as_jobs_return_the_job_run(client, monkeypatch) -> N
     assert rebuilt.status_code == 200, rebuilt.text
     assert started == [
         (builds.TAKE_RESEARCH_JOB_NAME, ["--take-uid", uid, "--research-mode", "heuristic"]),
-        (builds.TAKE_BUILD_JOB_NAME, ["--take-uid", uid]),
-        (builds.TAKE_BUILD_JOB_NAME, ["--take-uid", uid, "--research-uid", research_uid]),
+        (builds.TAKE_BUILD_JOB_NAME, ["--take-uid", uid, "--research-uid", str(latest.uid)]),
+        (builds.TAKE_BUILD_JOB_NAME, ["--take-uid", uid, "--research-uid", str(first.uid)]),
     ]
+
+
+def test_a_hosted_build_of_a_never_researched_take_starts_no_job(client, monkeypatch) -> None:
+    created = client.post("/v1/takes", json={"title": "Robots", "thesis_text": THESIS}).json()
+    monkeypatch.setenv("HUNCH_BUILD_EXECUTION", "job")
+    jobs, started = _platform_jobs()
+    with patch("mainsequence.client.Job") as job_model:
+        job_model.filter.side_effect = lambda name, timeout: [jobs[name]]
+        built = client.post(f"/v1/takes/{created['uid']}/actions/build")
+    assert built.status_code == 409, built.text
+    assert "Research the take" in built.json()["detail"]["message"]
+    assert started == []
 
 
 def test_a_started_job_without_a_job_run_fails_the_build(client, monkeypatch) -> None:
     created = client.post("/v1/takes", json={"title": "Robots", "thesis_text": THESIS}).json()
+    _fake_research(created["uid"])
     monkeypatch.setenv("HUNCH_BUILD_EXECUTION", "job")
     job = SimpleNamespace(
         name=builds.TAKE_BUILD_JOB_NAME, execution_path=builds.TAKE_BUILD_JOB_PATH

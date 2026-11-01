@@ -87,20 +87,24 @@ def start_take_build(
     execution: str | None = None,
 ) -> StartedBuild:
     """Construct the basket from a stored research (the latest by default) and build the
-    portfolio."""
+    portfolio.
+
+    The research is resolved here, before anything starts: a take without research answers at
+    once instead of starting a Job that fails, and a hosted build pins the research it was
+    started for, so a research that completes meanwhile does not change the basket.
+    """
+    from hunch.research.runs import research_for_build
+
     mode = execution or build_execution()
     uid = str(uuid.UUID(str(take_uid)))
-    research = str(uuid.UUID(str(research_uid))) if research_uid else None
+    research = str(research_for_build(uid, research_uid).uid)
     if mode == "inline":
         from hunch.portfolios.build import build_take
 
         result = build_take(uid, research_uid=research, created_by=created_by)
         return StartedBuild(execution="inline", take_uid=uid, result=result)
     job = platform_job(TAKE_BUILD_JOB_NAME, TAKE_BUILD_JOB_PATH)
-    args = ["--take-uid", uid]
-    if research:
-        args += ["--research-uid", research]
-    started = job.run_job(timeout=60, command_args=args)
+    started = job.run_job(timeout=60, command_args=["--take-uid", uid, "--research-uid", research])
     return StartedBuild(execution="job", take_uid=uid, job_run_uid=started_job_run_uid(started))
 
 
