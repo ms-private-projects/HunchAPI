@@ -155,9 +155,11 @@ resources:
     automatic_redeployment:
       enabled: true
       tag_regex: null
-# Builds and refreshes run as one shared Job per kind, selected by `--take-uid` (the API, the
-# Agent through the API, and the dispatcher start them). A Job cannot hold `runner` on itself, so
-# the dispatcher below starts the scheduled refreshes after the market close.
+# Builds, refreshes and reviews run as one shared Job per kind, selected by `--take-uid` (the API,
+# the Agent through the API, and the dispatchers start them). A Job cannot hold `runner` on
+# itself, so a dispatcher Job owns each schedule: the refresh dispatcher still refreshes in its
+# own process; the review dispatcher starts one review Job run per active take
+# (HUNCH_REVIEW_DISPATCH=job, ADR 0007), so the reviews run on the review Job's model credential.
 - key: hunch-take-build
   kind: job
   access:
@@ -309,15 +311,19 @@ resources:
       policy: runner
   spec:
     name: Hunch Daily Review Dispatcher
-    description: Start the scheduled review of every active take before the US open on session days.
+    description: Start one review Job run per active take before the US open on session days and follow them to the end.
     execution_path: src/jobs/run_hunch_daily_review.py
     cpu_request: '0.25'
     memory_request: '0.5'
     max_runtime_seconds: 3600
     spot: false
     env_vars:
-    # This workload holds no model-provider share, so its scheduled reviews stay deterministic;
-    # declaring the Meta credential here too is a separate access decision (ADR 0007).
+    # `job`: start one `Hunch Daily Review` run per active take, three at a time, and follow each
+    # batch to its end, so every thesis check runs on the review Job's Meta credential and this
+    # workload needs no model-provider share of its own (ADR 0007). `inline` would review every
+    # take in this process on the deterministic check below.
+    - name: HUNCH_REVIEW_DISPATCH
+      value: job
     - name: HUNCH_RESEARCH_MODE
       value: heuristic
     task_schedule:

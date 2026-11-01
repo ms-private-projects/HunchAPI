@@ -67,6 +67,15 @@ kinds of analysis. The platform facts that bound the design (read from the backe
    credential before `HUNCH_RESEARCH_MODE=inference` is set on it; the workflow file documents
    this and leaves the share to an explicit decision, because every push keeps it and the
    credential's owner pays for its use.
+5. **The scheduled sweep dispatches instead of holding a credential.** The review dispatcher
+   Job owns the schedule but no model credential. With `HUNCH_REVIEW_DISPATCH=job` its launcher
+   starts one `Hunch Daily Review` Job run per active take (`hunch.operations.reviews.dispatch_reviews`),
+   three at a time, and follows each batch to its end before starting the next, because the
+   platform admits four recorded model calls per Organization at once and a person's own review
+   or critique must keep a slot. A run that cannot start, fails or is still pending after half an
+   hour is reported and the sweep goes on; the exit code is 1 when any take failed. Locally
+   (`inline`) the sweep reviews in its own process as before. The portfolio refresh dispatcher
+   still refreshes in its own process: it calls no model.
 
 ## Development declaration (2026-11-01)
 
@@ -76,9 +85,10 @@ with `HUNCH_RESEARCH_MODE=inference`: the shared selection is `meta` / `muse-spa
 `medium`, the research and review roles keep it, and the analysis role reasons at `low` because it
 answers a person synchronously. Meta offers no `off` level. An OpenRouter share declared earlier
 the same day was replaced once the backend accepted Meta; it never completed a call, because that
-key had no credit. The review dispatcher, which reviews in its own process, holds no share and
-stays deterministic until that is decided. Every later push keeps the share, and usage is billed
-to the credential's owner.
+key had no credit. The review dispatcher holds no share: since decision 5 it starts review Job
+runs, which hold it. Every later push keeps the share, and usage is billed to the credential's
+owner. Verified the same day: a build (JobRun 4c8c75e8, recorded request 2e564635) and a critique
+(request 0d665f6c) completed on `muse-spark-1.3` with Hunch's schemas unchanged.
 
 ## Consequences
 

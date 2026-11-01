@@ -27,7 +27,7 @@ class StartedBuild:
     result: Any | None = None
 
 
-def _platform_job(name: str, execution_path: str) -> Any:
+def platform_job(name: str, execution_path: str) -> Any:
     """The workflow-declared Job of this branch, verified by name and execution path."""
     from mainsequence.client import Job
 
@@ -41,7 +41,7 @@ def _platform_job(name: str, execution_path: str) -> Any:
     return job
 
 
-def _started_job_run_uid(started: Any) -> str:
+def started_job_run_uid(started: Any) -> str:
     """The JobRun UID from `Job.run_job`, which answers `{"message": ..., "job_run_uid": ...}`."""
     job_run_uid = started.get("job_run_uid") if isinstance(started, dict) else None
     if not job_run_uid:
@@ -63,12 +63,12 @@ def start_take_build(
 
         result = build_take(uid, research_mode=research_mode, created_by=created_by)
         return StartedBuild(execution="inline", take_uid=uid, result=result)
-    job = _platform_job(TAKE_BUILD_JOB_NAME, TAKE_BUILD_JOB_PATH)
+    job = platform_job(TAKE_BUILD_JOB_NAME, TAKE_BUILD_JOB_PATH)
     args = ["--take-uid", uid]
     if research_mode:
         args += ["--research-mode", research_mode]
     started = job.run_job(timeout=60, command_args=args)
-    return StartedBuild(execution="job", take_uid=uid, job_run_uid=_started_job_run_uid(started))
+    return StartedBuild(execution="job", take_uid=uid, job_run_uid=started_job_run_uid(started))
 
 
 def start_portfolio_refresh(
@@ -81,9 +81,9 @@ def start_portfolio_refresh(
 
         result = refresh_take_portfolio(uid)
         return StartedBuild(execution="inline", take_uid=uid, result=result)
-    job = _platform_job(PORTFOLIO_REFRESH_JOB_NAME, PORTFOLIO_REFRESH_JOB_PATH)
+    job = platform_job(PORTFOLIO_REFRESH_JOB_NAME, PORTFOLIO_REFRESH_JOB_PATH)
     started = job.run_job(timeout=60, command_args=["--take-uid", uid])
-    return StartedBuild(execution="job", take_uid=uid, job_run_uid=_started_job_run_uid(started))
+    return StartedBuild(execution="job", take_uid=uid, job_run_uid=started_job_run_uid(started))
 
 
 def job_run_status(job_run_uid: str) -> dict[str, Any] | None:
@@ -112,6 +112,8 @@ __all__ = [
     "TAKE_BUILD_JOB_PATH",
     "StartedBuild",
     "job_run_status",
+    "platform_job",
     "start_portfolio_refresh",
     "start_take_build",
+    "started_job_run_uid",
 ]

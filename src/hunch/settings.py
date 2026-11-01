@@ -90,6 +90,10 @@ RESEARCH_MODES: tuple[str, ...] = ("inference", "heuristic")
 # Where a take build runs: `inline` in the API process (local development) or as a platform
 # Job (`job`, hosted).
 BUILD_EXECUTIONS: tuple[str, ...] = ("inline", "job")
+# How the scheduled review sweep runs: `inline` reviews every active take in the sweep's own
+# process (local development); `job` starts one `Hunch Daily Review` Job run per take, in small
+# batches, so the reviews run on that Job's model credential and in parallel (hosted dispatcher).
+REVIEW_DISPATCHES: tuple[str, ...] = ("inline", "job")
 # Daily bar providers: `synthetic` for local development and tests; `alpaca` is a later phase.
 BARS_PROVIDERS: tuple[str, ...] = ("synthetic",)
 # Venue connectors: `live` calls the Alpaca and IBKR connector applications over HTTP;
@@ -112,6 +116,10 @@ def research_mode() -> str:
 
 def build_execution() -> str:
     return _choice("HUNCH_BUILD_EXECUTION", "inline", BUILD_EXECUTIONS)
+
+
+def review_dispatch() -> str:
+    return _choice("HUNCH_REVIEW_DISPATCH", "inline", REVIEW_DISPATCHES)
 
 
 def bars_provider() -> str:
@@ -259,6 +267,7 @@ __all__ = [
     "MODEL_ROLE_REVIEW",
     "PROJECT_NAMESPACE_SLUG",
     "RESEARCH_MODES",
+    "REVIEW_DISPATCHES",
     "REVISION_KINDS",
     "THINKING_LEVELS",
     "TAKE_STATUSES",
@@ -286,4 +295,5 @@ __all__ = [
     "model_role",
     "model_roles",
     "research_mode",
+    "review_dispatch",
 ]
