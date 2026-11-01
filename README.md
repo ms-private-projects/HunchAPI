@@ -113,6 +113,16 @@ the Markets API and its holdings and fills in its own instances). Set
 the connector releases, and `HUNCH_RESEARCH_MODE=inference` with `HUNCH_INFERENCE_ENVIRONMENT_UID`
 to research through recorded inference (ADR 0002 explains the local finding).
 
+Model roles (ADR 0007): in `inference` mode each kind of recorded model call selects its own
+provider, model, thinking level and credential, so one deployment mixes models: `research`
+(builds), `review` (daily reviews) and `analysis` (the analysis-only tools, such as the thesis
+critique). Every role starts from `HUNCH_INFERENCE_PROVIDER`, `HUNCH_INFERENCE_MODEL`,
+`HUNCH_INFERENCE_THINKING` and `HUNCH_INFERENCE_CREDENTIAL` (a configured credential's
+`custom_id`); `HUNCH_MODEL_<ROLE>` overrides any of them with space-separated `key=value` pairs,
+for example `HUNCH_MODEL_ANALYSIS="provider=openrouter model=anthropic/claude-haiku-4.5
+thinking=low"`. The Hunch Agent's own conversation model is the Harness Agent declaration in the
+workflow file, not a role. `GET /v1/project-state/configuration` reports every role.
+
 Research sources: `HUNCH_RESEARCH_SOURCES` (default `quant`; add `finnhub` with
 `HUNCH_FINNHUB_API_KEY` for news and fundamentals). Email digests: `HUNCH_EMAIL_SENDER` (`outbox`
 locally, writes `.hunch-outbox/*.eml`; `platform` hosted), `HUNCH_SITE_URL` for links; run

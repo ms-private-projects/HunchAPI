@@ -35,6 +35,7 @@ def test_catalog_lists_the_project_tools_with_their_schemas() -> None:
         "hunch_manage_take",
         "hunch_build_take",
         "hunch_query_portfolio",
+        "hunch_analyze_take",
         "hunch_query_instruments",
         "hunch_accounts",
         "hunch_funding",

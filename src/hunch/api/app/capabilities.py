@@ -66,6 +66,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "fork",
             "archive",
             "list own and published takes",
+            "critique the thesis (analysis only, nothing changes)",
         ),
         surfaces=("api", "mcp"),
     ),

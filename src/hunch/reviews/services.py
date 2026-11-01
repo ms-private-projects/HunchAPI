@@ -19,7 +19,7 @@ from hunch.community.notifications import notify
 from hunch.profiles import utc_now
 from hunch.research.models import ResearchError
 from hunch.reviews import HunchDailyReview
-from hunch.settings import research_mode
+from hunch.settings import MODEL_ROLE_REVIEW, research_mode
 from hunch.takes import Take
 from hunch.takes.services import TakeConstraints, TakeStateError
 
@@ -180,6 +180,7 @@ def inference_thesis_check(
         timeout=120,
         client=client,
         what="review",
+        role=MODEL_ROLE_REVIEW,
     )
     content = completion.content
     verdict = str(content.get("verdict") or "hold")

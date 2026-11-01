@@ -30,6 +30,8 @@ ExecutionMode = Literal["parallel", "sequential"]
 
 # A build researches with a recorded model call; give it well over the 60-second MCP default.
 BUILD_TOOL_TIMEOUT_SECONDS = 300
+# An analysis is one recorded completion with a 90-second platform deadline.
+ANALYSIS_TOOL_TIMEOUT_SECONDS = 120
 
 
 @dataclass(frozen=True, slots=True)
@@ -292,6 +294,16 @@ def query_portfolio(arguments: Mapping[str, Any]) -> Any:
     if operation == "performance":
         return service.take_performance_frame(user, take_uid)
     return service.take_weights_resource(user, take_uid)
+
+
+def analyze_take(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services.analysis import critique_thesis_resource
+
+    _operation(arguments, {"critique_thesis"})
+    user = acting_user()
+    take_uid = _required_text(arguments, "take_uid")
+    return critique_thesis_resource(user, take_uid, mode=_optional_text(arguments, "research_mode"))
 
 
 def query_instruments(arguments: Mapping[str, Any]) -> Any:
@@ -602,6 +614,30 @@ PROJECT_AGENT_TOOLS: tuple[ProjectAgentTool, ...] = (
         handler=query_portfolio,
     ),
     ProjectAgentTool(
+        name="hunch_analyze_take",
+        label="Analyze A Take",
+        description=(
+            "Analysis only, nothing changes: critique the thesis of a take the person owns or a "
+            "published one with one bounded call on the analysis model. Returns the claims with "
+            "their strength, the assumptions, counterarguments, risks, conditions that would show "
+            "the thesis wrong, tensions with the constraints and questions that would sharpen it. "
+            "Useful before a build or before publishing."
+        ),
+        parameters=_operations(
+            _operation_case(
+                "critique_thesis",
+                properties={
+                    "take_uid": _uid("take"),
+                    "research_mode": _enum(RESEARCH_MODES, "Override the configured mode."),
+                },
+                required=("take_uid",),
+            ),
+        ),
+        execution_mode="parallel",
+        handler=analyze_take,
+        timeout_seconds=ANALYSIS_TOOL_TIMEOUT_SECONDS,
+    ),
+    ProjectAgentTool(
         name="hunch_query_instruments",
         label="Query Instruments",
         description="List or search the instruments Hunch can hold, or read one by ticker or FIGI.",
@@ -817,10 +853,12 @@ PROJECT_AGENT_TOOLS: tuple[ProjectAgentTool, ...] = (
 
 
 __all__ = [
+    "ANALYSIS_TOOL_TIMEOUT_SECONDS",
     "BUILD_TOOL_TIMEOUT_SECONDS",
     "PROJECT_AGENT_TOOLS",
     "ProjectAgentTool",
     "accounts",
+    "analyze_take",
     "build_take",
     "funding",
     "get_job_run_status",

@@ -56,6 +56,18 @@ class AssistantConfiguration(BaseModel):
     display_name: str = "Hunch Agent"
 
 
+class ModelRoleConfiguration(BaseModel):
+    """The provider and model one kind of recorded model call runs on."""
+
+    provider: str
+    model: str
+    thinking: str | None = None
+    credential: str | None = Field(
+        default=None,
+        description="The configured credential's name (`custom_id`); None selects the default.",
+    )
+
+
 class ResearchConfiguration(BaseModel):
     mode: str = Field(description="`inference` records a model call; `heuristic` matches themes.")
     build_execution: str = Field(
@@ -64,6 +76,13 @@ class ResearchConfiguration(BaseModel):
     bars_provider: str
     inference_provider: str | None = None
     inference_model: str | None = None
+    models: dict[str, ModelRoleConfiguration] = Field(
+        default_factory=dict,
+        description=(
+            "The model each role runs on in `inference` mode: `research` (builds), `review` "
+            "(daily thesis checks) and `analysis` (analysis-only tools)."
+        ),
+    )
 
 
 class ConnectorConfiguration(BaseModel):
@@ -420,6 +439,50 @@ class ProposalDecisionRequest(BaseModel):
 class FundResponse(BaseModel):
     funding: FundingResource
     proposal: ProposalResource
+
+
+# Analysis ---------------------------------------------------------------------------------------
+
+
+class AnalysisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    research_mode: Literal["inference", "heuristic"] | None = Field(
+        default=None, description="Override the configured mode for this analysis."
+    )
+
+
+class ThesisClaimResource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    claim: str
+    strength: str = Field(description="`strong`, `moderate` or `weak`.")
+    note: str = ""
+
+
+class ThesisCritiqueResource(BaseModel):
+    """What a take claims, what it assumes, what would show it wrong; never a change to it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    take_uid: str
+    mode: str = Field(description="`inference` (the analysis model) or `heuristic`.")
+    summary: str
+    clarity: str = Field(description="`clear`, `partly_clear` or `vague`.")
+    claims: list[ThesisClaimResource] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    counterarguments: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    suggested_conditions: list[str] = Field(
+        default_factory=list, description="Checkable conditions that would show the thesis wrong."
+    )
+    constraint_notes: list[str] = Field(default_factory=list)
+    questions: list[str] = Field(default_factory=list)
+    provider: str | None = None
+    model: str | None = None
+    inference_request_uids: list[str] = Field(default_factory=list)
+    conversation_uid: str | None = None
+    disclaimers: list[str] = Field(default_factory=lambda: list(DISCLAIMERS))
 
 
 # Reviews, leaderboard, notifications -----------------------------------------------------------

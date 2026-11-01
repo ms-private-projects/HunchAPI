@@ -20,12 +20,7 @@ from hunch.research.models import (
     ResearchOutput,
 )
 from hunch.research.sources import Evidence, evidence_block
-from hunch.settings import (
-    inference_environment_uid,
-    inference_model,
-    inference_provider,
-    inference_thinking,
-)
+from hunch.settings import MODEL_ROLE_RESEARCH, inference_environment_uid, model_role
 from hunch.takes import Take
 from hunch.takes.services import TakeConstraints
 
@@ -132,14 +127,22 @@ def _user_prompt(
 
 
 class RecordedCompletion:
-    """The parsed JSON answer of one recorded completion and its platform identifiers."""
+    """The parsed JSON answer of one recorded completion, its platform identifiers and its model."""
 
     def __init__(
-        self, content: dict[str, Any], request_uid: str | None, conversation_uid: str | None
+        self,
+        content: dict[str, Any],
+        request_uid: str | None,
+        conversation_uid: str | None,
+        *,
+        provider: str | None = None,
+        model: str | None = None,
     ):
         self.content = content
         self.request_uid = request_uid
         self.conversation_uid = conversation_uid
+        self.provider = provider
+        self.model = model
 
 
 def inference_client(client: Any | None = None) -> Any:
@@ -166,20 +169,31 @@ def recorded_completion(
     timeout: int = 240,
     client: Any | None = None,
     what: str = "research",
+    role: str = MODEL_ROLE_RESEARCH,
 ) -> RecordedCompletion:
-    """One recorded, schema-constrained completion; raises ``ResearchError`` on any failure."""
+    """One recorded, schema-constrained completion on the role's model.
+
+    The role (`hunch.settings.model_role`) decides the provider, model, thinking level and
+    credential, so each kind of call can run on a different model. Raises ``ResearchError`` on any
+    failure.
+    """
     inference = inference_client(client)
     try:
+        selection = model_role(role)
+    except ValueError as exc:
+        raise ResearchError(f"The {what} model role is misconfigured: {exc}") from exc
+    try:
         result = inference.complete(
-            provider=inference_provider(),
-            model=inference_model(),
+            provider=selection.provider,
+            model=selection.model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            thinking_level=inference_thinking(),
+            thinking_level=selection.thinking,
+            custom_id=selection.credential,
             response_schema=schema,
-            metadata={"operation": operation, **metadata},
+            metadata={"operation": operation, "model_role": role, **metadata},
             idempotency_key=f"{idempotency_prefix}-{uuid.uuid4().hex[:8]}",
             timeout=timeout,
         )
@@ -199,6 +213,8 @@ def recorded_completion(
         content,
         str(result.request_uid) if result.request_uid else None,
         str(result.conversation_uid) if result.conversation_uid else None,
+        provider=str(getattr(result, "provider", "") or selection.provider),
+        model=str(getattr(result, "model", "") or selection.model),
     )
 
 

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, Request, status
 from ..errors import api_http_error
 from ..identity import acting_user
 from ..schemas import (
+    AnalysisRequest,
     ArchiveRequest,
     BuildRequest,
     BuildResponse,
@@ -25,8 +26,10 @@ from ..schemas import (
     TakeCreateRequest,
     TakeResource,
     TakeUpdateRequest,
+    ThesisCritiqueResource,
     WeightsResponse,
 )
+from ..services.analysis import critique_thesis_resource
 from ..services.fundings import (
     fund_take_resource,
     take_funding_resource,
@@ -180,6 +183,28 @@ def fork(take_uid: str) -> TakeResource:
 def archive(take_uid: str, payload: ArchiveRequest) -> TakeResource:
     try:
         return archive_take_resource(acting_user(), take_uid, payload.confirmation)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.post(
+    "/{take_uid}/actions/critique-thesis",
+    response_model=ThesisCritiqueResource,
+    summary="Critique the thesis",
+    description=(
+        "Analysis only, nothing changes: one bounded model call on the analysis model role "
+        "returns the claims with their strength, the assumptions, counterarguments, risks, "
+        "conditions that would show the thesis wrong, tensions with the constraints and the "
+        "questions that would sharpen it. Works on an owned take or a published one."
+    ),
+)
+def critique_thesis(
+    take_uid: str, payload: AnalysisRequest | None = None
+) -> ThesisCritiqueResource:
+    try:
+        return critique_thesis_resource(
+            acting_user(), take_uid, mode=payload.research_mode if payload else None
+        )
     except Exception as exc:
         raise api_http_error(exc) from exc
 
