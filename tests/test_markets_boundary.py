@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import importlib.util
+import logging
+import threading
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from hunch import runtime
 from hunch.migrations import METADATA, PROJECT_TABLE_NAMES, all_project_metatable_models
 from hunch.runtime import (
     MARKETS_API_REQUEST_SECONDS,
@@ -15,8 +20,11 @@ from hunch.runtime import (
     markets_api_client,
     project_models,
     wait_for_metatables_api,
+    wake_markets_api,
 )
 from hunch.series import project_series_models
+
+BUILD_LAUNCHER = Path(__file__).resolve().parents[1] / "src/jobs/run_hunch_take_build.py"
 
 
 def test_every_hunch_table_is_catalogued_in_the_hunch_namespace() -> None:
@@ -70,6 +78,100 @@ def test_the_markets_client_waits_for_a_waking_markets_api(monkeypatch) -> None:
     )
     assert client.base_url == "https://markets.example.test"
     assert client.timeout == MARKETS_API_REQUEST_SECONDS
+
+
+@pytest.fixture
+def no_remote_backend(monkeypatch):
+    """No Markets backend selected yet; the process's selection is restored afterwards."""
+    from msm.api import remote
+
+    monkeypatch.setattr(remote, "_remote_backend", None)
+    monkeypatch.delenv(remote.MSM_API_BACKEND_ENV, raising=False)
+    return remote
+
+
+def test_the_markets_api_wakes_in_the_background_and_the_first_call_waits_for_it(
+    monkeypatch, no_remote_backend
+) -> None:
+    waking = threading.Event()
+    released = threading.Event()
+    resolved_on: list[str] = []
+    client = object()
+
+    def resolve():
+        resolved_on.append(threading.current_thread().name)
+        waking.set()
+        released.wait(5)
+        return client
+
+    monkeypatch.setattr(runtime, "markets_api_client", resolve)
+    thread = wake_markets_api()
+    assert thread is not None and thread.daemon
+    assert waking.wait(5)
+
+    backend = no_remote_backend.active_remote_backend()
+    first_call: list[object] = []
+    caller = threading.Thread(target=lambda: first_call.append(backend.client))
+    caller.start()
+    caller.join(0.2)
+    assert caller.is_alive() and not first_call  # the first call waits for the wake
+
+    released.set()
+    thread.join(5)
+    caller.join(5)
+    assert first_call == [client]
+    assert resolved_on == ["markets-api-wake"]  # resolved once, by the wake
+
+
+def test_a_failed_wake_leaves_the_first_call_to_resolve_again(
+    monkeypatch, no_remote_backend, caplog
+) -> None:
+    client = object()
+    attempts: list[int] = []
+
+    def resolve():
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise TimeoutError("still waking: secret-detail")
+        return client
+
+    monkeypatch.setattr(runtime, "markets_api_client", resolve)
+    with caplog.at_level(logging.WARNING, logger="hunch.runtime"):
+        thread = wake_markets_api()
+        assert thread is not None
+        thread.join(5)
+    assert "Waking the Markets API failed: TimeoutError" in caplog.text
+    assert "secret-detail" not in caplog.text
+    assert no_remote_backend.active_remote_backend().client is client
+    assert len(attempts) == 2
+
+
+def test_no_wake_without_the_lazy_markets_backend(no_remote_backend) -> None:
+    no_remote_backend.use_remote_backend(SimpleNamespace(call=lambda *_: None))
+    assert wake_markets_api() is None
+
+
+def test_the_build_job_wakes_the_markets_api_before_attaching_the_runtime(monkeypatch) -> None:
+    from hunch.migrations import schema_gate
+    from hunch.portfolios import build
+
+    spec = importlib.util.spec_from_file_location("run_hunch_take_build", BUILD_LAUNCHER)
+    launcher = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(launcher)
+
+    steps: list[str] = []
+    monkeypatch.setattr(schema_gate, "skip_if_schema_behind", lambda _name: steps.append("gate"))
+    monkeypatch.setattr(runtime, "wake_markets_api", lambda: steps.append("wake"))
+    monkeypatch.setattr(runtime, "start_markets_engine", lambda: steps.append("attach"))
+
+    def stop(*_args, **_kwargs):
+        steps.append("build")
+        raise RuntimeError("stop here")
+
+    monkeypatch.setattr(build, "build_take", stop)
+    assert launcher.main(["--take-uid", "be2946ac-0000-0000-0000-000000000000"]) == 1
+    assert steps == ["gate", "wake", "attach", "build"]
 
 
 def test_the_metatables_api_is_resolved_with_a_wake_budget(monkeypatch) -> None:

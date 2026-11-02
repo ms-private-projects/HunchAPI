@@ -148,7 +148,10 @@ Leaderboard and Hunch Email Digest run no updater and keep `data_writer`.
 - FastAPI releases scale to zero after about 60 s idle (no scale-down delay; Harness Agents keep
   15 minutes), and a Markets API cold start takes 60-110 s, 40-50 s of it attaching its runtime.
   A take build calls Markets before its graph and registers the datasets after it, so on
-  development it pays that wake twice (three times before the graph identity was fixed).
+  development it paid that wake twice (three times before the graph identity was fixed). The
+  build Job now starts the first wake right after its schema gate (`wake_markets_api`, a
+  background resolve of the lazy backend's client), so it overlaps the runtime attachment and
+  the construction; the wake after the graph's MetaTables-only stretch remains.
 
 ## Consequences
 

@@ -16,17 +16,23 @@ a Markets call may take ``MARKETS_API_REQUEST_SECONDS`` (an 85 s snapshot publis
 client's 60 s default and was reported failed after it had been written).
 
 Call ``start_markets_engine()`` once at every process entry point (each Job ``main()``, FastAPI
-startup, the local launcher).
+startup, the local launcher). A Job that reaches Markets only after other work can start the wake
+first with ``wake_markets_api()``.
 """
 
 from __future__ import annotations
 
+import logging
+import threading
+import time
 from typing import Any
 
 ROW_MODEL_NAME = "hunch.runtime"
 MARKETS_API_WAKE_SECONDS = 600.0
 MARKETS_API_REQUEST_SECONDS = 300.0
 METATABLES_API_WAKE_SECONDS = 600.0
+
+logger = logging.getLogger(__name__)
 
 
 def project_models() -> list[type[Any]]:
@@ -92,6 +98,37 @@ def use_markets_api() -> None:
         use_remote_backend(LazyRemoteBackend(markets_api_client))
 
 
+def wake_markets_api() -> threading.Thread | None:
+    """Resolve the Markets API in the background, so a scaled-to-zero API wakes meanwhile.
+
+    A take build first calls Markets about a minute after it starts, and a Markets cold start
+    takes 60-110 s, so the build used to wait for the whole wake. The backend resolves its client
+    once, under a lock: the first Markets call now waits only for what is left of the wake. A wake
+    that fails leaves the client unresolved, so that call resolves it again and raises there.
+    Returns the thread, or ``None`` when the process does not use the lazy Markets API backend.
+    """
+    from msm.api.remote import active_remote_backend
+    from msm.client import LazyRemoteBackend
+
+    use_markets_api()
+    backend = active_remote_backend()
+    if not isinstance(backend, LazyRemoteBackend):
+        return None
+
+    def resolve() -> None:
+        started = time.monotonic()
+        try:
+            backend.client  # resolving the client waits for the API to wake and caches it
+        except Exception as exc:  # the first Markets call resolves it again and raises
+            logger.warning("Waking the Markets API failed: %s", type(exc).__name__)
+            return
+        logger.info("The Markets API answered after %.0f s", time.monotonic() - started)
+
+    thread = threading.Thread(target=resolve, name="markets-api-wake", daemon=True)
+    thread.start()
+    return thread
+
+
 def start_markets_engine(
     *,
     timeout: int | float | tuple[float, float] | None = None,
@@ -135,4 +172,5 @@ __all__ = [
     "start_markets_engine",
     "use_markets_api",
     "wait_for_metatables_api",
+    "wake_markets_api",
 ]

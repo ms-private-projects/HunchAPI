@@ -2,8 +2,9 @@
 
 The API starts a run with `--take-uid <uid>` (and optionally `--research-uid <uid>`; the take's
 latest research otherwise). The launcher first checks that the database schema is not behind this
-image, attaches the markets runtime once, builds, and prints a JSON summary. It calls no model:
-research is the Hunch Take Research Job, run first (ADR 0008). A failure exits 1.
+image, starts waking the Markets API, attaches the markets runtime once, builds, and prints a JSON
+summary. It calls no model: research is the Hunch Take Research Job, run first (ADR 0008). A
+failure exits 1.
 """
 
 from __future__ import annotations
@@ -25,8 +26,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     from hunch.portfolios.build import build_take
-    from hunch.runtime import start_markets_engine
+    from hunch.runtime import start_markets_engine, wake_markets_api
 
+    # The Markets API scales to zero and the build first needs it after attaching the runtime and
+    # constructing the basket, so it wakes meanwhile.
+    wake_markets_api()
     start_markets_engine()
     try:
         result = build_take(args.take_uid, research_uid=args.research_uid, created_by="job")
