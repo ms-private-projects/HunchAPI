@@ -99,6 +99,16 @@ runs, which hold it. Every later push keeps the share, and usage is billed to th
 owner. Verified the same day: a build (JobRun 4c8c75e8, recorded request 2e564635) and a critique
 (request 0d665f6c) completed on `muse-spark-1.3` with Hunch's schemas unchanged.
 
+## The research role on Muse Wonder (2026-11-02)
+
+Researching the target universe is the one step where the strongest model pays (ADR 0008), so
+the research role runs `muse-wonder-1.0`, Meta's most capable model, at `medium`, on the
+`hunch-take-research` Job and mirrored on the `hunch` API's reported configuration. The shared
+selection, the review role and the analysis role stay on `muse-spark-1.3`, and so does the
+Agent. The level stays `medium` because recorded inference gives one call 60 seconds of
+transport: the first research on Spark 1.3 answered 4,102 output tokens in 29 seconds, and a
+higher level on Wonder would risk that deadline before it improved the basket.
+
 ## Consequences
 
 - One deployment can research on one model, review on another and analyse on a third, from the
