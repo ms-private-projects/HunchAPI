@@ -151,7 +151,10 @@ Leaderboard and Hunch Email Digest run no updater and keep `data_writer`.
   development it paid that wake twice (three times before the graph identity was fixed). The
   build Job now starts the first wake right after its schema gate (`wake_markets_api`, a
   background resolve of the lazy backend's client), so it overlaps the runtime attachment and
-  the construction; the wake after the graph's MetaTables-only stretch remains.
+  the construction; the wake after the graph's MetaTables-only stretch remains. On development
+  (2026-11-02, builds e08fe607 and 650866bb with the backend answering validations in 0.3 s) the
+  first Markets response came 65 s after the script started instead of 111 s, and the build
+  waited about 13 s there instead of 61 s.
 
 ## Consequences
 

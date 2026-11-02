@@ -167,9 +167,11 @@ found." on `time-index-table-updates/get-or-create/` (ADR 0006). First granted i
    A build's time on development is round trips, not computation: each MetaTables call costs
    seconds (the platform admits every request through the local backend, ADR 0006), an updater
    run is about fifteen of them, and the Markets API wakes again (60-110 s) whenever more than a
-   minute passes between Markets calls. Read the JobRun's SDK log lines (`... took N seconds`)
-   against the backend's request log (`docker logs tsorm_web_local`, durations per request)
-   before changing a timeout.
+   minute passes between Markets calls (the build Job starts the first wake at its schema gate).
+   Read the JobRun's SDK log lines (`... took N seconds`) against the backend's request log
+   (`docker logs tsorm_web_local`, durations per request) before changing a timeout, and compare
+   two builds only when the backend answered `/fastapi/jwt/validate/` at the same speed in both:
+   on 2026-11-02 it went from 0.3 s to about 2 s for forty minutes with no change in traffic.
 4. Set `HUNCH_SITE_URL` from the site's link and push; opt a profile into the digest; run
    `hunch-email-digest --user-uid <uid> --dry-run` from the Jobs page, then for real.
 5. When the Alpaca connector API ships its execution capability: set
