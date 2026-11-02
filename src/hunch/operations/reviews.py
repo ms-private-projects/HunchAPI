@@ -18,6 +18,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
 
+from hunch.operations.builds import PENDING_JOB_RUN_STATUSES
 from hunch.reviews import HunchDailyReview
 from hunch.reviews.services import review_take
 
@@ -30,10 +31,6 @@ REVIEW_DISPATCH_POLL_SECONDS = 20.0
 # A review Job run starts in about a minute and reviews in a few more; the dispatcher gives a
 # batch half an hour before it reports the stragglers as timed out and moves on.
 REVIEW_DISPATCH_BATCH_TIMEOUT_SECONDS = 1800.0
-# JobRun statuses that mean the run is still going; anything else is final.
-PENDING_JOB_RUN_STATUSES: frozenset[str] = frozenset(
-    {"PENDING", "QUEUED", "SCHEDULED", "STARTING", "RUNNING"}
-)
 SUCCEEDED_JOB_RUN_STATUS = "SUCCEEDED"
 TIMED_OUT_STATUS = "TIMED_OUT"
 START_FAILED_STATUS = "START_FAILED"
@@ -75,14 +72,14 @@ class DispatchedReview:
 
 def start_review_job(take_uid: uuid.UUID | str, *, research_mode: str | None = None) -> str:
     """Start the review Job for one take and return its JobRun UID."""
-    from hunch.operations.builds import platform_job, started_job_run_uid
+    from hunch.operations.builds import platform_job, start_job_run
 
     uid = str(uuid.UUID(str(take_uid)))
     job = platform_job(DAILY_REVIEW_JOB_NAME, DAILY_REVIEW_JOB_PATH)
     args = ["--take-uid", uid]
     if research_mode:
         args += ["--research-mode", research_mode]
-    return started_job_run_uid(job.run_job(timeout=60, command_args=args))
+    return start_job_run(job, args)
 
 
 def _job_run_state(job_run_uid: str) -> tuple[str | None, str | None]:
