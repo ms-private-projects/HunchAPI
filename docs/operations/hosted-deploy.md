@@ -111,7 +111,8 @@ API, which the workflow's `MainSequenceMarkets` branch grant lets each workload 
 | --- | --- | --- |
 | `hunch-migrate` | `editor` (automatic) | `editor` until its first 0004 run has moved the tables, then none |
 | `hunch` API and every other Hunch Job, dispatchers included | `data_writer` | none |
-| `hunch` API, Hunch Take Research, Hunch Take Build, Hunch Portfolio Refresh, Hunch Daily Review and Hunch Execution Sync | also `editor` on each of the ten series tables (below) | none |
+| `hunch` API, Hunch Take Build, Hunch Portfolio Refresh, Hunch Daily Review and Hunch Execution Sync | also `editor` on each of the ten series tables (below) | none |
+| Hunch Take Research | also `editor` on `hunch__externalpricests__daily` only | none |
 | the Markets API workload | `data_viewer` on `hunch__portfoliosts__takes`, `hunch__portfolioweightsts__takes` and `hunch__signalweightsts__takes` only (catalog reconcile) | owner side |
 | a person or a Team of people | `owner` | as before |
 
@@ -133,7 +134,7 @@ The workloads that run updaters also hold table-level `editor` on the ten series
 `hunch__tradests__simulated`): registering and running an updater is `tables.operate_updaters`,
 which `data_writer` does not include. Without it a build fails with 404 "TimeIndexMetaTable not
 found." on `time-index-table-updates/get-or-create/` (ADR 0006). First granted in development on
-2026-10-28.
+2026-10-28 and in Production on 2026-11-02.
 
 ## Moving onto the Markets API boundary (revision 0004)
 
@@ -157,12 +158,13 @@ found." on `time-index-table-updates/get-or-create/` (ADR 0006). First granted i
    site's `development` and push: the site resolves `HunchAPI/hunch` at build time and fails
    with `invalid_configuration` while that release does not exist (2026-10-25: the site built 41 s
    before the API workflow created it). The next push to the site's branch builds it again.
-3. Open the site in Command Center; create, build and activate a practice take; publish it; check
-   the leaderboard, notifications and the Assistant (the configuration endpoint reports the Agent).
-   The first build in an Environment backfills the whole universe's daily bars (about 40k rows
+3. Open the site in Command Center; create, research, build and activate a practice take; publish
+   it; check the leaderboard, notifications and the Assistant (the configuration endpoint reports
+   the Agent).
+   The first research in an Environment backfills the whole universe's daily bars (about 40k rows
    since 2024) in runs of at most 6,000 rows, because one MetaTables upload has a 60 s deadline
    and the development MetaTables API persists about 380 rows a second: expect about seven bars
-   runs and a few extra minutes once; later builds write one session per name, or nothing when
+   runs and a few extra minutes once; later runs write one session per name, or nothing when
    the bars are current.
    A build's time on development is round trips, not computation: each MetaTables call costs
    seconds (the platform admits every request through the local backend, ADR 0006), an updater
