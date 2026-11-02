@@ -87,8 +87,10 @@ no lower bound on those fields and the prompt never described them. Since then:
 - Research stored before this change may have empty cases or claims; it reads back and builds as
   before. Roles cannot be checked in code: the prompt is their only control, and the guardrails
   still size by role.
-- Meta already accepted `maxLength`, `maxItems` and `minItems` in Hunch's schemas; the first
-  hosted research after this change shows whether it also accepts `minLength`.
+- Meta accepts `minLength` as well as `maxLength`, `maxItems` and `minItems`. A local run of Muse
+  Wonder 1.0 with the stricter schema and the field descriptions, before the role definitions
+  were added, filled five claims and all eleven cases on its first call (33.6 seconds). It still
+  tagged NEE and DUK `pure_play`, so the role definitions are not yet verified on Wonder.
 
 ## Consequences
 
