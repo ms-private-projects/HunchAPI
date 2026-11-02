@@ -13,6 +13,7 @@ from hunch.api.app.schemas import (
     AssistantConfiguration,
     AssistantRuntime,
     ConnectorConfiguration,
+    ModelRoleConfiguration,
     ProjectConfigurationResponse,
     ResearchConfiguration,
 )
@@ -25,6 +26,7 @@ from hunch.settings import (
     connector_mode,
     inference_model,
     inference_provider,
+    model_roles,
     research_mode,
 )
 
@@ -101,6 +103,10 @@ def research_configuration() -> ResearchConfiguration:
         bars_provider=bars_provider(),
         inference_provider=inference_provider() if mode == "inference" else None,
         inference_model=inference_model() if mode == "inference" else None,
+        models={
+            role: ModelRoleConfiguration(**selection.as_dict())
+            for role, selection in model_roles().items()
+        },
     )
 
 

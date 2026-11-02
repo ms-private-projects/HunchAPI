@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, Request, status
 from ..errors import api_http_error
 from ..identity import acting_user
 from ..schemas import (
+    AnalysisRequest,
     ArchiveRequest,
     BuildRequest,
     BuildResponse,
@@ -17,6 +18,9 @@ from ..schemas import (
     FundRequest,
     FundResponse,
     ProposalResource,
+    ResearchRequest,
+    ResearchResource,
+    ResearchResponse,
     ResourceCollection,
     ResourceDiscoveryResponse,
     ReviewRequest,
@@ -25,8 +29,10 @@ from ..schemas import (
     TakeCreateRequest,
     TakeResource,
     TakeUpdateRequest,
+    ThesisCritiqueResource,
     WeightsResponse,
 )
+from ..services.analysis import critique_thesis_resource
 from ..services.fundings import (
     fund_take_resource,
     take_funding_resource,
@@ -39,6 +45,11 @@ from ..services.portfolios import (
     take_performance_frame,
     take_revision_resources,
     take_weights_resource,
+)
+from ..services.research import (
+    get_take_research_resource,
+    research_take_resource,
+    take_research_resources,
 )
 from ..services.reviews import list_review_resources, run_review_resource
 from ..services.takes import (
@@ -185,18 +196,89 @@ def archive(take_uid: str, payload: ArchiveRequest) -> TakeResource:
 
 
 @router.post(
+    "/{take_uid}/actions/critique-thesis",
+    response_model=ThesisCritiqueResource,
+    summary="Critique the thesis",
+    description=(
+        "Analysis only, nothing changes: one bounded model call on the analysis model role "
+        "returns the claims with their strength, the assumptions, counterarguments, risks, "
+        "conditions that would show the thesis wrong, tensions with the constraints and the "
+        "questions that would sharpen it. Works on an owned take or a published one."
+    ),
+)
+def critique_thesis(
+    take_uid: str, payload: AnalysisRequest | None = None
+) -> ThesisCritiqueResource:
+    try:
+        return critique_thesis_resource(
+            acting_user(), take_uid, mode=payload.research_mode if payload else None
+        )
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.post(
+    "/{take_uid}/actions/research",
+    response_model=ResearchResponse,
+    summary="Research a take",
+    description=(
+        "Research the thesis against the target universe: the candidate instruments with their "
+        "roles, cases, risks and conviction, a brief and a rationale, kept as the take's next "
+        "numbered research. Decides no weight and changes no portfolio: build the take from it "
+        "next. Inline locally; a platform Job when hosted."
+    ),
+)
+def research(take_uid: str, payload: ResearchRequest | None = None) -> ResearchResponse:
+    try:
+        return research_take_resource(
+            acting_user(), take_uid, research_mode=payload.research_mode if payload else None
+        )
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.get(
+    "/{take_uid}/research",
+    response_model=list[ResearchResource],
+    summary="The take's research",
+    description="Every research the take keeps, latest first.",
+)
+def research_list(
+    take_uid: str, limit: int = Query(default=30, ge=1, le=100)
+) -> list[ResearchResource]:
+    try:
+        return take_research_resources(acting_user(), take_uid, limit=limit)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.get(
+    "/{take_uid}/research/{research_uid}",
+    response_model=ResearchResource,
+    summary="One research",
+)
+def research_get(take_uid: str, research_uid: str) -> ResearchResource:
+    try:
+        return get_take_research_resource(acting_user(), take_uid, research_uid)
+    except Exception as exc:
+        raise api_http_error(exc) from exc
+
+
+@router.post(
     "/{take_uid}/actions/build",
     response_model=BuildResponse,
     summary="Build a take",
     description=(
-        "Research the thesis, apply the take's constraints, publish the basket and (re)build the "
-        "portfolio. Inline locally; a platform Job when hosted."
+        "Portfolio construction: apply the take's constraints to a stored research (the latest "
+        "by default, or `research_uid`), publish the basket and (re)build the portfolio. No model "
+        "is called; a take without research answers 409. Inline locally; a platform Job when "
+        "hosted."
     ),
 )
 def build(take_uid: str, payload: BuildRequest | None = None) -> BuildResponse:
     try:
         return build_take_resource(
-            acting_user(), take_uid, research_mode=payload.research_mode if payload else None
+            acting_user(), take_uid, research_uid=payload.research_uid if payload else None
         )
     except Exception as exc:
         raise api_http_error(exc) from exc

@@ -31,12 +31,14 @@ def all_project_metatable_models() -> list[type]:
     from hunch.funding import project_funding_models
     from hunch.instruments import project_instrument_models
     from hunch.reviews import project_review_models
+    from hunch.takes.research import project_research_models
     from hunch.takes.revisions import project_revision_models
 
     return [
         *project_profile_models(),
         *project_instrument_models(),
         *project_take_models(),
+        *project_research_models(),
         *project_revision_models(),
         *project_portfolio_models(),
         *project_funding_models(),

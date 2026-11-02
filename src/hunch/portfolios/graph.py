@@ -12,7 +12,10 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 from collections.abc import Sequence
+from functools import lru_cache
 from typing import Any
+
+import pandas_market_calendars as mcal
 
 from hunch.portfolios.signal import HunchBasketSignal
 from hunch.runtime import markets_runtime
@@ -25,11 +28,10 @@ from hunch.settings import (
     TRADING_CALENDAR_VALID_TO,
 )
 from metatables import TimeIndexTableRef
-from msm.api.calendars import Calendar
+from msm.api.calendars import Calendar, CalendarDate, CalendarSession, CalendarType
 from msm.api.portfolios import Portfolio
 from msm_portfolios.configuration import (
     BacktestingWeightsConfig,
-    FrontEndDetails,
     PortfolioBuildConfiguration,
     PortfolioConfiguration,
     PortfolioExecutionConfiguration,
@@ -46,27 +48,62 @@ from msm_portfolios.time_index import (
 UTC = dt.timezone.utc
 # Equities trade on business days; a bar a few days old is still the last valuation.
 VALUATION_MAX_STALENESS = dt.timedelta(days=5)
+# Calendar rows per Markets API upsert; the 2024-2028 horizon is about 1,800 dates.
+CALENDAR_UPSERT_BATCH = 250
+
+
+def _upsert_calendar(*, valid_to: str) -> Calendar:
+    return Calendar.upsert(
+        unique_identifier=TRADING_CALENDAR_IDENTIFIER,
+        display_name="New York Stock Exchange",
+        calendar_type=CalendarType.TRADING,
+        timezone=str(mcal.get_calendar(TRADING_CALENDAR_SOURCE).tz),
+        source="pandas_market_calendars",
+        source_identifier=TRADING_CALENDAR_SOURCE,
+        valid_from=TRADING_CALENDAR_VALID_FROM,
+        valid_to=valid_to,
+    )
 
 
 def ensure_trading_calendar() -> Calendar:
-    """The persisted XNYS calendar, materialised through the configured horizon."""
+    """The persisted XNYS calendar, materialised through the configured horizon.
+
+    Hunch builds the dates and sessions from pandas-market-calendars and upserts them through the
+    Markets API: the hosted Markets API does not install pandas-market-calendars, so
+    `Calendar.create_from_pandas_calendar` fails there with ModuleNotFoundError (ADR 0006). The
+    horizon marks the calendar complete, so it is extended only after its rows are written.
+    """
+    from msm.services.calendars import build_pandas_market_calendar_materialization
+
     existing = Calendar.get_by_unique_identifier(TRADING_CALENDAR_IDENTIFIER)
     if existing is not None:
         valid_to = getattr(existing, "valid_to", None)
         if valid_to is not None and str(valid_to) >= TRADING_CALENDAR_VALID_TO:
             return existing
-    return Calendar.create_from_pandas_calendar(
+    calendar = existing or _upsert_calendar(valid_to=TRADING_CALENDAR_VALID_FROM)
+    rows = build_pandas_market_calendar_materialization(
+        calendar_uid=calendar.uid,
         source_identifier=TRADING_CALENDAR_SOURCE,
-        unique_identifier=TRADING_CALENDAR_IDENTIFIER,
-        display_name="New York Stock Exchange",
-        valid_from=TRADING_CALENDAR_VALID_FROM,
-        valid_to=TRADING_CALENDAR_VALID_TO,
+        start_date=TRADING_CALENDAR_VALID_FROM,
+        end_date=TRADING_CALENDAR_VALID_TO,
+        timezone=calendar.timezone,
         session_label=TRADING_CALENDAR_SESSION,
     )
+    for row_class, payloads in ((CalendarDate, rows.dates), (CalendarSession, rows.sessions)):
+        for start in range(0, len(payloads), CALENDAR_UPSERT_BATCH):
+            row_class.upsert_many(payloads[start : start + CALENDAR_UPSERT_BATCH])
+    return _upsert_calendar(valid_to=TRADING_CALENDAR_VALID_TO)
+
+
+@lru_cache(maxsize=32)
+def _table_ref(meta_table_uid: str) -> TimeIndexTableRef:
+    # The catalog row of a series instance changes only with a deploy (a migration), so one
+    # lookup per table serves the process; every read through the reference is a request of its own.
+    return TimeIndexTableRef.from_uid(meta_table_uid)
 
 
 def _series_ref(storage: type[Any]) -> TimeIndexTableRef:
-    return TimeIndexTableRef.from_uid(str(markets_runtime().table(storage).meta_table_uid))
+    return _table_ref(str(markets_runtime().table(storage).meta_table_uid))
 
 
 def external_prices_ref() -> TimeIndexTableRef:
@@ -85,14 +122,21 @@ class _FixedPortfolioResolver:
 
 
 class PortfolioGraph:
-    """The nodes of one take's portfolio graph, run in dependency order."""
+    """The nodes of one take's portfolio graph, run in dependency order.
+
+    The rebalance, weights and values updaters hash their whole portfolio configuration into
+    their identity, so it holds only what builds the portfolio and is the same on every build and
+    every refresh of the take. A take title or a build's rationale in it made every build register
+    three new updaters (about twenty MetaTables round trips each, seconds apiece on development)
+    and left the old ones behind. The description reaches the values updater as
+    ``portfolio_description``, which stays outside the identity.
+    """
 
     def __init__(
         self,
         *,
         portfolio: Portfolio,
         signal: HunchBasketSignal,
-        display_name: str,
         description: str | None = None,
         offset_start: dt.datetime | None = None,
     ) -> None:
@@ -129,8 +173,7 @@ class PortfolioGraph:
                 ),
             ),
             portfolio_markets_configuration=PortfolioMarketsConfig(
-                portfolio_name=display_name,
-                front_end_details=FrontEndDetails(description=description) if description else None,
+                portfolio_name=portfolio.unique_identifier,
             ),
         )
         self.values = PortfoliosUpdater(
@@ -211,18 +254,31 @@ def portfolio_value_points(
 
 
 def portfolio_latest_weights(identifier: str) -> list[dict[str, Any]]:
-    """The latest weight snapshot of one portfolio, one row per asset, from Hunch's instance."""
+    """The latest weight snapshot of one portfolio, one row per asset, from Hunch's instance.
+
+    One read: the table's identity is the portfolio and the asset, so the last observation per
+    identity is each asset's last row, and the snapshot is the rows at the latest of those times.
+    An asset that left the portfolio has its last row earlier, or a zero weight at that time.
+    """
     ref = _series_ref(portfolio_series()["weights"])
     last = ref.get_last_observation(dimension_filters={"portfolio_identifier": [identifier]})
     latest = _last_time_index(last)
     if latest is None:
         return []
-    frame = ref.get_df_between_dates(
-        start_date=latest,
-        end_date=latest,
-        dimension_filters={"portfolio_identifier": [identifier]},
-    )
-    return _records(frame)
+    if not hasattr(last, "empty"):
+        # A single row or mapping rather than a frame: read the snapshot at its time.
+        frame = ref.get_df_between_dates(
+            start_date=latest,
+            end_date=latest,
+            dimension_filters={"portfolio_identifier": [identifier]},
+        )
+        return _records(frame)
+    return [row for row in _records(last) if _as_datetime(row["time_index"]) == latest]
+
+
+def _as_datetime(value: Any) -> Any:
+    to_pydatetime = getattr(value, "to_pydatetime", None)
+    return to_pydatetime() if to_pydatetime is not None else value
 
 
 def _last_time_index(observation: Any) -> dt.datetime | None:

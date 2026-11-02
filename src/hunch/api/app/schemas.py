@@ -56,6 +56,18 @@ class AssistantConfiguration(BaseModel):
     display_name: str = "Hunch Agent"
 
 
+class ModelRoleConfiguration(BaseModel):
+    """The provider and model one kind of recorded model call runs on."""
+
+    provider: str
+    model: str
+    thinking: str | None = None
+    credential: str | None = Field(
+        default=None,
+        description="The configured credential's name (`custom_id`); None selects the default.",
+    )
+
+
 class ResearchConfiguration(BaseModel):
     mode: str = Field(description="`inference` records a model call; `heuristic` matches themes.")
     build_execution: str = Field(
@@ -64,6 +76,13 @@ class ResearchConfiguration(BaseModel):
     bars_provider: str
     inference_provider: str | None = None
     inference_model: str | None = None
+    models: dict[str, ModelRoleConfiguration] = Field(
+        default_factory=dict,
+        description=(
+            "The model each role runs on in `inference` mode: `research` (builds), `review` "
+            "(daily thesis checks) and `analysis` (analysis-only tools)."
+        ),
+    )
 
 
 class ConnectorConfiguration(BaseModel):
@@ -184,14 +203,63 @@ class ArchiveRequest(BaseModel):
     confirmation: str = Field(min_length=1, description="Exactly: DELETE <take uid>")
 
 
-# Building, revisions, weights, performance ------------------------------------------------------
+# Research, building, revisions, weights, performance --------------------------------------------
+
+
+class ResearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    research_mode: Literal["inference", "heuristic"] | None = Field(
+        default=None, description="Override the configured research mode for this research."
+    )
+
+
+class ResearchResource(BaseModel):
+    """One research of a take's target universe (ADR 0008): candidates, no weights."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    uid: str
+    take_uid: str
+    number: int = Field(description="1, 2, ... per take, in research order.")
+    mode: str
+    brief: dict[str, Any] = Field(
+        description="The thesis parsed: claims, beneficiaries, losers, keywords, horizon."
+    )
+    candidates: list[dict[str, Any]] = Field(
+        description="Candidate instruments: ticker, role, case, risks, conviction, citations."
+    )
+    rationale_md: str
+    evidence: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Numbered evidence items (id, ticker, kind, title, summary, source, url, "
+        "published_at) the rationale and candidates cite.",
+    )
+    provider: str | None = None
+    model: str | None = None
+    inference_request_uids: list[str] = Field(default_factory=list)
+    conversation_uid: str | None = None
+    created_by: str
+    created_at: dt.datetime | None = None
+
+
+class ResearchResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    execution: Literal["inline", "job"]
+    take: TakeResource
+    research: ResearchResource | None = None
+    job_run_uid: str | None = Field(
+        default=None, description="The JobRun to poll when the research runs as a platform Job."
+    )
 
 
 class BuildRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    research_mode: Literal["inference", "heuristic"] | None = Field(
-        default=None, description="Override the configured research mode for this build."
+    research_uid: str | None = Field(
+        default=None,
+        description="The take's research to construct from; its latest research by default.",
     )
 
 
@@ -201,6 +269,9 @@ class RevisionResource(BaseModel):
     uid: str
     take_uid: str
     revision: int
+    research_uid: str | None = Field(
+        default=None, description="The research this basket was constructed from."
+    )
     kind: str
     rationale_md: str
     weights: list[dict[str, Any]]
@@ -420,6 +491,50 @@ class ProposalDecisionRequest(BaseModel):
 class FundResponse(BaseModel):
     funding: FundingResource
     proposal: ProposalResource
+
+
+# Analysis ---------------------------------------------------------------------------------------
+
+
+class AnalysisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    research_mode: Literal["inference", "heuristic"] | None = Field(
+        default=None, description="Override the configured mode for this analysis."
+    )
+
+
+class ThesisClaimResource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    claim: str
+    strength: str = Field(description="`strong`, `moderate` or `weak`.")
+    note: str = ""
+
+
+class ThesisCritiqueResource(BaseModel):
+    """What a take claims, what it assumes, what would show it wrong; never a change to it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    take_uid: str
+    mode: str = Field(description="`inference` (the analysis model) or `heuristic`.")
+    summary: str
+    clarity: str = Field(description="`clear`, `partly_clear` or `vague`.")
+    claims: list[ThesisClaimResource] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    counterarguments: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    suggested_conditions: list[str] = Field(
+        default_factory=list, description="Checkable conditions that would show the thesis wrong."
+    )
+    constraint_notes: list[str] = Field(default_factory=list)
+    questions: list[str] = Field(default_factory=list)
+    provider: str | None = None
+    model: str | None = None
+    inference_request_uids: list[str] = Field(default_factory=list)
+    conversation_uid: str | None = None
+    disclaimers: list[str] = Field(default_factory=lambda: list(DISCLAIMERS))
 
 
 # Reviews, leaderboard, notifications -----------------------------------------------------------

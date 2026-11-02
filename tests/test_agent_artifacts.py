@@ -88,6 +88,7 @@ def test_workflow_declares_the_api_the_one_agent_and_the_migration() -> None:
     jobs = [item for item in workflow["resources"] if item["kind"] == "job"]
     assert {job["key"] for job in jobs} == {
         "hunch-migrate",
+        "hunch-take-research",
         "hunch-take-build",
         "hunch-portfolio-refresh",
         "hunch-portfolio-refresh-dispatcher",
@@ -100,7 +101,11 @@ def test_workflow_declares_the_api_the_one_agent_and_the_migration() -> None:
     for job in jobs:
         assert (ROOT / job["spec"]["execution_path"]).is_file(), job["key"]
     migrate = _resource("job", "hunch-migrate")
+    assert {"key": "hunch-take-research", "policy": "runner"} in api["access"]["resources"]
     assert {"key": "hunch-take-build", "policy": "runner"} in api["access"]["resources"]
+    # Research calls the model and holds the credential; construction calls none and holds none.
+    assert "model_providers" in _resource("job", "hunch-take-research")["access"]
+    assert "model_providers" not in _resource("job", "hunch-take-build")["access"]
     dispatcher = _resource("job", "hunch-portfolio-refresh-dispatcher")
     assert dispatcher["spec"]["scheduled_command_args"] == ["--scheduled"]
     assert {"key": "hunch-portfolio-refresh", "policy": "runner"} in dispatcher["access"][

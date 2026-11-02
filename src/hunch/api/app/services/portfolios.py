@@ -1,4 +1,5 @@
-"""Building takes and reading what Hunch built: revisions, weights, performance."""
+"""Building takes from their research and reading what Hunch built: revisions, weights,
+performance. Research itself is ``hunch.api.app.services.research`` (ADR 0008)."""
 
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ def revision_resource(row: TakeRevision) -> RevisionResource:
         uid=str(row.uid),
         take_uid=str(row.take_uid),
         revision=row.revision,
+        research_uid=str(row.research_uid) if row.research_uid else None,
         kind=row.kind,
         rationale_md=row.rationale_md,
         weights=list(row.weights_json or []),
@@ -46,12 +48,12 @@ def _take_resource(row: Take) -> TakeResource:
 
 
 def build_take_resource(
-    user: ActingUser, take_uid: str, *, research_mode: str | None = None
+    user: ActingUser, take_uid: str, *, research_uid: str | None = None
 ) -> BuildResponse:
+    """Construct the basket from a stored research (the latest by default) and build the
+    portfolio; a take without research answers a conflict."""
     take = owned_take(user.uid, take_uid)
-    started: StartedBuild = start_take_build(
-        take.uid, research_mode=research_mode, created_by="user"
-    )
+    started: StartedBuild = start_take_build(take.uid, research_uid=research_uid, created_by="user")
     if started.execution == "inline" and started.result is not None:
         return BuildResponse(
             execution="inline",

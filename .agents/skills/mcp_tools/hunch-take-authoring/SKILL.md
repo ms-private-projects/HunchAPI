@@ -37,6 +37,21 @@ person's limits.
 published takes (`scope` `public`), newest first, with optional `status` and `search`. `get` reads
 one take they own or that is public. Limits are 1–100 and offsets are multiples of the limit.
 
+## Critique the thesis
+
+`hunch_analyze_take` operation `critique_thesis` reads a take the person owns or a published one
+and answers with an analysis only: a summary, how clearly the thesis is stated, each claim with
+the weight it can carry, the assumptions, counterarguments, risks, conditions that would show the
+thesis wrong, tensions with the constraints, and questions that would sharpen it. Nothing changes.
+The call runs on the analysis model and can take a minute. Offer it before a research or before
+publishing, relay the questions and the suggested conditions in the person's words, and let them
+decide what to edit. When the answer's `mode` is `heuristic`, it is a deterministic reading of the
+structure only: say so, and do not present it as a judgement of the claims.
+
+```json
+{"tool":"hunch_analyze_take","arguments":{"operation":"critique_thesis","take_uid":"<take uid>"}}
+```
+
 ## Publish, fork, archive
 
 - `publish` needs a built take; a draft has nothing to show. `unpublish` makes it private again.
@@ -56,5 +71,6 @@ asks, and confirm the address back to them.
 
 ## Beyond authoring
 
-Building and performance, linked accounts and funding, proposals, reviews, the leaderboard and
-notifications have their own skills; read the matching one before those workflows.
+Research and building (two independent steps: research the target universe, then construct the
+basket from a stored research), performance, linked accounts and funding, proposals, reviews, the
+leaderboard and notifications have their own skills; read the matching one before those workflows.

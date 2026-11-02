@@ -1,7 +1,9 @@
-"""Building a take: research → guardrails → revision → signal → portfolio graph.
+"""Building a take: a stored research → guardrails → revision → signal → portfolio graph.
 
-Hunch owns this pipeline end to end. It is deterministic service code; the model is called as a
-recorded function inside research, and a build never talks to a brokerage.
+Portfolio construction is the second of the two independent build steps (ADR 0008). It starts
+from one research the take keeps (``hunch.research.runs``), applies the take's constraints to its
+candidates, publishes the basket and (re)builds the portfolio. Hunch owns this pipeline end to
+end; it is deterministic service code that calls no model and never talks to a brokerage.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from typing import Any
 import pandas as pd
 
 from hunch.instruments import HunchInstrument
-from hunch.instruments.services import ensure_universe, instruments_by_figi
+from hunch.instruments.services import cached_instruments, ensure_universe, instruments_by_figi
 from hunch.market_data import ensure_daily_bars, last_completed_session_close, latest_closes
 from hunch.portfolios import HunchPortfolio
 from hunch.portfolios.graph import (
@@ -26,8 +28,10 @@ from hunch.portfolios.graph import (
 from hunch.portfolios.services import hunch_portfolio_identifier
 from hunch.portfolios.signal import basket_signal, publish_basket_observation
 from hunch.profiles import utc_now
-from hunch.research import BasketProposal, propose_basket
+from hunch.research import BasketProposal, construct_basket
+from hunch.research.runs import research_for_build, research_output
 from hunch.takes import Take
+from hunch.takes.research import TakeResearch
 from hunch.takes.revisions import TakeRevision
 from hunch.takes.services import TakeStateError
 from msm.api.portfolios import Portfolio
@@ -38,6 +42,7 @@ UTC = dt.timezone.utc
 @dataclass(slots=True)
 class BuildResult:
     take: Take
+    research: TakeResearch
     revision: TakeRevision
     hunch_portfolio: HunchPortfolio
     portfolio_identifier: str
@@ -63,26 +68,39 @@ def take_universe(take_uid: uuid.UUID | str, *extra: str) -> list[str]:
 def build_take(
     take_uid: uuid.UUID | str,
     *,
-    research_mode: str | None = None,
+    research_uid: uuid.UUID | str | None = None,
     now: dt.datetime | None = None,
     created_by: str | None = None,
 ) -> BuildResult:
-    """Research the take, publish its basket, and (re)build its portfolio."""
+    """Construct the basket from a stored research, publish it, and (re)build the portfolio.
+
+    `research_uid` names the research to build from; the take's latest is used otherwise. A take
+    that was never researched cannot be built (``TakeStateError``).
+    """
     take = Take.get_by_uid(uuid.UUID(str(take_uid)))
     if take is None:
         raise LookupError(f"Take {take_uid} does not exist.")
     if take.status == "archived":
         raise TakeStateError("An archived take cannot be built.")
+    research_row = research_for_build(take.uid, research_uid)
+    research = research_output(research_row)
     moment = (now or dt.datetime.now(UTC)).astimezone(UTC)
 
     instruments: list[HunchInstrument] = ensure_universe()
+    # The portfolio graph values the basket from the stored bars; on the first build in an
+    # Environment they may not exist yet, so write the universe's bars first.
+    universe_figis = [row.figi for row in instruments]
+    ensure_daily_bars(universe_figis, end=moment.date())
     previous = take_revisions(take.uid)
     revision_number = (previous[-1].revision + 1) if previous else 1
-    proposal = propose_basket(take, instruments, mode=research_mode, revision=revision_number)
+    proposal = construct_basket(take, instruments, research)
     weights = proposal.weights_by_figi()
 
     universe = take_universe(take.uid, *weights)
-    ensure_daily_bars(universe, end=moment.date())
+    # Only a name the take held that has since left the universe still lacks fresh bars.
+    departed = sorted(set(universe) - set(universe_figis))
+    if departed:
+        ensure_daily_bars(departed, end=moment.date())
     calendar = ensure_trading_calendar()
 
     signal_time = last_completed_session_close(moment)
@@ -104,7 +122,8 @@ def build_take(
         is_simulated=True,
         activated_at=take.activated_at,
         metadata_json={
-            "research_mode": proposal.research.mode,
+            "research_mode": research.mode,
+            "research_uid": str(research_row.uid),
             "price_source": "ExternalPricesTS",
             "rebalance": "XNYS market_close, every session",
         },
@@ -112,7 +131,6 @@ def build_take(
     graph = PortfolioGraph(
         portfolio=portfolio_row,
         signal=signal,
-        display_name=take.title,
         description=proposal.rationale_md[:500] or None,
         offset_start=signal_time - dt.timedelta(days=1),
     )
@@ -121,19 +139,24 @@ def build_take(
     revision = TakeRevision.create(
         take_uid=take.uid,
         revision=revision_number,
+        research_uid=research_row.uid,
         kind="initial" if revision_number == 1 else "rebalance",
         rationale_md=proposal.rationale_md,
         weights_json=[item.model_dump() for item in proposal.weights],
+        # A copy of what the basket was constructed from, so a revision reads on its own.
         research_json={
-            "brief": proposal.research.brief.model_dump(),
-            "candidates": [c.model_dump() for c in proposal.research.candidates],
+            "research_uid": str(research_row.uid),
+            "research_number": research_row.number,
+            "mode": research.mode,
+            "brief": research.brief.model_dump(),
+            "candidates": [c.model_dump() for c in research.candidates],
             "guardrail_notes": proposal.guardrail_notes,
             "cash_weight": proposal.cash_weight,
-            "conversation_uid": proposal.research.conversation_uid,
-            "evidence": [item.model_dump(mode="json") for item in proposal.research.evidence],
+            "conversation_uid": research.conversation_uid,
+            "evidence": [item.model_dump(mode="json") for item in research.evidence],
         },
-        inference_request_uids=proposal.research.inference_request_uids or None,
-        created_by=created_by or proposal.research.mode,
+        inference_request_uids=research.inference_request_uids or None,
+        created_by=created_by or "job",
         signal_time_index=signal_time,
         created_at=utc_now(),
     )
@@ -143,6 +166,7 @@ def build_take(
     )
     return BuildResult(
         take=updated,
+        research=research_row,
         revision=revision,
         hunch_portfolio=hunch_portfolio,
         portfolio_identifier=portfolio_row.unique_identifier,
@@ -188,7 +212,6 @@ def refresh_take_portfolio(
     graph = PortfolioGraph(
         portfolio=portfolio_row,
         signal=basket_signal(take.uid, universe),
-        display_name=take.title,
         offset_start=first_signal - dt.timedelta(days=1),
     )
     return graph.run()
@@ -221,11 +244,16 @@ def take_performance(take: Take) -> list[dict[str, Any]]:
 
 
 def take_weights(take: Take) -> list[dict[str, Any]]:
-    """Latest portfolio weights with instrument identity, heaviest first."""
+    """Latest portfolio weights with instrument identity, heaviest first.
+
+    The Basket tab loads this on every visit, so it reads as little as it can: the weights
+    snapshot, the instrument rows from the process cache, and the last closes only for rows the
+    graph stored without an execution price.
+    """
     rows = portfolio_latest_weights(hunch_portfolio_identifier(take.uid))
-    instruments = instruments_by_figi(ensure_universe())
-    figis = [str(row["asset_identifier"]) for row in rows]
-    closes = latest_closes(figis) if figis else {}
+    instruments = instruments_by_figi(cached_instruments())
+    unpriced = [str(row["asset_identifier"]) for row in rows if row.get("price_current") is None]
+    closes = latest_closes(unpriced) if unpriced else {}
     out = []
     for row in rows:
         instrument = instruments.get(str(row["asset_identifier"]))

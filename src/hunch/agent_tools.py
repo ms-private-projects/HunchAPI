@@ -28,8 +28,11 @@ from hunch.takes.services import TakeCreate, TakeUpdate
 ToolHandler = Callable[[Mapping[str, Any]], Any]
 ExecutionMode = Literal["parallel", "sequential"]
 
-# A build researches with a recorded model call; give it well over the 60-second MCP default.
+# A research is one recorded model call and a build runs the portfolio graph; give both well over
+# the 60-second MCP default.
 BUILD_TOOL_TIMEOUT_SECONDS = 300
+# An analysis is one recorded completion with a 90-second platform deadline.
+ANALYSIS_TOOL_TIMEOUT_SECONDS = 120
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,6 +267,25 @@ def manage_take(arguments: Mapping[str, Any]) -> Any:
     return service.archive_take_resource(user, take_uid, _required_text(arguments, "confirmation"))
 
 
+def research_take(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services import research as service
+
+    operation = _operation(arguments, {"run", "list", "get"})
+    user = acting_user()
+    take_uid = _required_text(arguments, "take_uid")
+    if operation == "run":
+        return service.research_take_resource(
+            user, take_uid, research_mode=_optional_text(arguments, "research_mode")
+        )
+    if operation == "get":
+        return service.get_take_research_resource(
+            user, take_uid, _required_text(arguments, "research_uid")
+        )
+    limit = _integer(arguments, "limit", default=10, minimum=1, maximum=100)
+    return service.take_research_resources(user, take_uid, limit=limit)
+
+
 def build_take(arguments: Mapping[str, Any]) -> Any:
     from hunch.api.app.identity import acting_user
     from hunch.api.app.services import portfolios as service
@@ -273,7 +295,7 @@ def build_take(arguments: Mapping[str, Any]) -> Any:
     take_uid = _required_text(arguments, "take_uid")
     if operation == "build":
         return service.build_take_resource(
-            user, take_uid, research_mode=_optional_text(arguments, "research_mode")
+            user, take_uid, research_uid=_optional_text(arguments, "research_uid")
         )
     if operation == "activate_practice":
         return service.activate_practice_resource(user, take_uid)
@@ -292,6 +314,16 @@ def query_portfolio(arguments: Mapping[str, Any]) -> Any:
     if operation == "performance":
         return service.take_performance_frame(user, take_uid)
     return service.take_weights_resource(user, take_uid)
+
+
+def analyze_take(arguments: Mapping[str, Any]) -> Any:
+    from hunch.api.app.identity import acting_user
+    from hunch.api.app.services.analysis import critique_thesis_resource
+
+    _operation(arguments, {"critique_thesis"})
+    user = acting_user()
+    take_uid = _required_text(arguments, "take_uid")
+    return critique_thesis_resource(user, take_uid, mode=_optional_text(arguments, "research_mode"))
 
 
 def query_instruments(arguments: Mapping[str, Any]) -> Any:
@@ -551,21 +583,60 @@ PROJECT_AGENT_TOOLS: tuple[ProjectAgentTool, ...] = (
         handler=manage_take,
     ),
     ProjectAgentTool(
+        name="hunch_research_take",
+        label="Research A Take",
+        description=(
+            "Research an owned take's thesis against the target universe: the candidate "
+            "instruments with their roles, cases, risks and conviction, a brief and a rationale, "
+            "kept as the take's next numbered research. Decides no weight and changes no "
+            "portfolio: build the take from it with hunch_build_take. Hosted research returns a "
+            "JobRun UID to follow. `list` and `get` read the research a take keeps (owned or "
+            "published)."
+        ),
+        parameters=_operations(
+            _operation_case(
+                "run",
+                properties={
+                    "take_uid": _uid("take"),
+                    "research_mode": _enum(
+                        RESEARCH_MODES, "Override the configured research mode."
+                    ),
+                },
+                required=("take_uid",),
+            ),
+            _operation_case(
+                "list",
+                properties={
+                    "take_uid": _uid("take"),
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10},
+                },
+                required=("take_uid",),
+            ),
+            _operation_case(
+                "get",
+                properties={"take_uid": _uid("take"), "research_uid": _uid("research")},
+                required=("take_uid", "research_uid"),
+            ),
+        ),
+        execution_mode="sequential",
+        handler=research_take,
+        timeout_seconds=BUILD_TOOL_TIMEOUT_SECONDS,
+    ),
+    ProjectAgentTool(
         name="hunch_build_take",
         label="Build A Take",
         description=(
-            "Build (or rebuild) the basket of an owned take: research the thesis, apply its "
-            "constraints, publish the weights and compute the portfolio; then activate it as a "
-            "practice take or refresh its values. Hosted builds return a JobRun UID to follow."
+            "Portfolio construction of an owned take from a stored research (its latest, or "
+            "`research_uid`): apply its constraints, publish the weights and compute the "
+            "portfolio; then activate it as a practice take or refresh its values. No model is "
+            "called; research the take first. Hosted builds return a JobRun UID to follow."
         ),
         parameters=_operations(
             _operation_case(
                 "build",
                 properties={
                     "take_uid": _uid("take"),
-                    "research_mode": _enum(
-                        RESEARCH_MODES, "Override the configured research mode."
-                    ),
+                    "research_uid": _uid("research to construct from (the latest by default)"),
                 },
                 required=("take_uid",),
             ),
@@ -600,6 +671,30 @@ PROJECT_AGENT_TOOLS: tuple[ProjectAgentTool, ...] = (
         ),
         execution_mode="parallel",
         handler=query_portfolio,
+    ),
+    ProjectAgentTool(
+        name="hunch_analyze_take",
+        label="Analyze A Take",
+        description=(
+            "Analysis only, nothing changes: critique the thesis of a take the person owns or a "
+            "published one with one bounded call on the analysis model. Returns the claims with "
+            "their strength, the assumptions, counterarguments, risks, conditions that would show "
+            "the thesis wrong, tensions with the constraints and questions that would sharpen it. "
+            "Useful before a build or before publishing."
+        ),
+        parameters=_operations(
+            _operation_case(
+                "critique_thesis",
+                properties={
+                    "take_uid": _uid("take"),
+                    "research_mode": _enum(RESEARCH_MODES, "Override the configured mode."),
+                },
+                required=("take_uid",),
+            ),
+        ),
+        execution_mode="parallel",
+        handler=analyze_take,
+        timeout_seconds=ANALYSIS_TOOL_TIMEOUT_SECONDS,
     ),
     ProjectAgentTool(
         name="hunch_query_instruments",
@@ -803,7 +898,10 @@ PROJECT_AGENT_TOOLS: tuple[ProjectAgentTool, ...] = (
     ProjectAgentTool(
         name="hunch_get_job_run_status",
         label="Get Hunch JobRun Status",
-        description="Read one Hunch build or refresh JobRun status and its sanitized failure summary.",
+        description=(
+            "Read one Hunch research, build or refresh JobRun status and its sanitized failure "
+            "summary."
+        ),
         parameters={
             "type": "object",
             "properties": {"job_run_uid": _uid("JobRun")},
@@ -817,10 +915,12 @@ PROJECT_AGENT_TOOLS: tuple[ProjectAgentTool, ...] = (
 
 
 __all__ = [
+    "ANALYSIS_TOOL_TIMEOUT_SECONDS",
     "BUILD_TOOL_TIMEOUT_SECONDS",
     "PROJECT_AGENT_TOOLS",
     "ProjectAgentTool",
     "accounts",
+    "analyze_take",
     "build_take",
     "funding",
     "get_job_run_status",
@@ -833,5 +933,6 @@ __all__ = [
     "query_instruments",
     "query_portfolio",
     "query_takes",
+    "research_take",
     "reviews",
 ]

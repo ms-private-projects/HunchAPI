@@ -61,6 +61,8 @@ class ResearchOutput(BaseModel):
     inference_request_uids: list[str] = Field(default_factory=list)
     conversation_uid: str | None = None
     evidence: list[Evidence] = Field(default_factory=list)
+    provider: str | None = Field(default=None, description="The provider that answered.")
+    model: str | None = Field(default=None, description="The model that answered.")
 
 
 class BasketWeight(BaseModel):

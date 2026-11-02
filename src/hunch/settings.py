@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 
 # Project namespace slug: the ms-markets physical-table app segment of every Hunch MetaTable
 # (`hunch__<table>`), the MetaTables migration namespace and the migration catalog key.
@@ -89,6 +90,10 @@ RESEARCH_MODES: tuple[str, ...] = ("inference", "heuristic")
 # Where a take build runs: `inline` in the API process (local development) or as a platform
 # Job (`job`, hosted).
 BUILD_EXECUTIONS: tuple[str, ...] = ("inline", "job")
+# How the scheduled review sweep runs: `inline` reviews every active take in the sweep's own
+# process (local development); `job` starts one `Hunch Daily Review` Job run per take, in small
+# batches, so the reviews run on that Job's model credential and in parallel (hosted dispatcher).
+REVIEW_DISPATCHES: tuple[str, ...] = ("inline", "job")
 # Daily bar providers: `synthetic` for local development and tests; `alpaca` is a later phase.
 BARS_PROVIDERS: tuple[str, ...] = ("synthetic",)
 # Venue connectors: `live` calls the Alpaca and IBKR connector applications over HTTP;
@@ -111,6 +116,10 @@ def research_mode() -> str:
 
 def build_execution() -> str:
     return _choice("HUNCH_BUILD_EXECUTION", "inline", BUILD_EXECUTIONS)
+
+
+def review_dispatch() -> str:
+    return _choice("HUNCH_REVIEW_DISPATCH", "inline", REVIEW_DISPATCHES)
 
 
 def bars_provider() -> str:
@@ -138,6 +147,87 @@ def inference_provider() -> str:
 
 def inference_model() -> str:
     return os.environ.get("HUNCH_INFERENCE_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna"
+
+
+def inference_credential() -> str | None:
+    """The configured credential (its `custom_id`) recorded inference selects; None for the default.
+
+    The platform then uses the workload's first owned credential, then the first shared one.
+    """
+    value = os.environ.get("HUNCH_INFERENCE_CREDENTIAL", "").strip()
+    return value or None
+
+
+# Model roles: each kind of recorded model call Hunch makes selects its own provider, model,
+# thinking level and credential, so one deployment can mix models. The Hunch Agent's own
+# conversation model is the Harness Agent declaration in the workflow file, not a role here.
+# Every role starts from the shared `HUNCH_INFERENCE_*` selection; `HUNCH_MODEL_<ROLE>` overrides
+# it with space-separated `key=value` pairs, for example
+# `HUNCH_MODEL_ANALYSIS="provider=openrouter model=anthropic/claude-sonnet-4.6 thinking=low"`.
+# Model identifiers may contain `/` and `:`; a key missing from the override keeps the shared value.
+MODEL_ROLE_RESEARCH = "research"  # a take build: thesis to candidates
+MODEL_ROLE_REVIEW = "review"  # the daily thesis check of an active take
+MODEL_ROLE_ANALYSIS = "analysis"  # analysis-only tools that answer a person synchronously
+MODEL_ROLES: tuple[str, ...] = (MODEL_ROLE_RESEARCH, MODEL_ROLE_REVIEW, MODEL_ROLE_ANALYSIS)
+MODEL_ROLE_KEYS: tuple[str, ...] = ("provider", "model", "thinking", "credential")
+THINKING_LEVELS: tuple[str, ...] = ("off", "minimal", "low", "medium", "high", "xhigh", "max")
+
+
+@dataclass(frozen=True, slots=True)
+class ModelSelection:
+    """The provider, model, thinking level and credential one model role runs on."""
+
+    role: str
+    provider: str
+    model: str
+    thinking: str | None = None
+    credential: str | None = None
+
+    def as_dict(self) -> dict[str, str | None]:
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "thinking": self.thinking,
+            "credential": self.credential,
+        }
+
+
+def model_role(role: str) -> ModelSelection:
+    """The model selection of one role: the shared defaults, then `HUNCH_MODEL_<ROLE>` overrides."""
+    if role not in MODEL_ROLES:
+        raise ValueError(f"Unknown model role {role!r}; roles are: {', '.join(MODEL_ROLES)}.")
+    selected: dict[str, str | None] = {
+        "provider": inference_provider(),
+        "model": inference_model(),
+        "thinking": inference_thinking(),
+        "credential": inference_credential(),
+    }
+    name = f"HUNCH_MODEL_{role.upper()}"
+    for pair in os.environ.get(name, "").split():
+        key, separator, value = pair.partition("=")
+        if not separator or key not in MODEL_ROLE_KEYS or not value:
+            raise ValueError(
+                f"{name} holds space-separated key=value pairs with keys: "
+                f"{', '.join(MODEL_ROLE_KEYS)}."
+            )
+        selected[key] = value
+    thinking = selected["thinking"]
+    if thinking is not None and thinking not in THINKING_LEVELS:
+        raise ValueError(
+            f"{name}: thinking must be one of {', '.join(THINKING_LEVELS)}, not {thinking!r}."
+        )
+    return ModelSelection(
+        role=role,
+        provider=str(selected["provider"]),
+        model=str(selected["model"]),
+        thinking=thinking,
+        credential=selected["credential"],
+    )
+
+
+def model_roles() -> dict[str, ModelSelection]:
+    """Every role's selection, for the configuration the site and the Agent read."""
+    return {role: model_role(role) for role in MODEL_ROLES}
 
 
 def inference_environment_uid() -> str | None:
@@ -170,9 +260,16 @@ __all__ = [
     "PROPOSAL_TRIGGERS",
     "REVIEW_OUTCOMES",
     "MIGRATION_NAMESPACE",
+    "MODEL_ROLES",
+    "MODEL_ROLE_ANALYSIS",
+    "MODEL_ROLE_KEYS",
+    "MODEL_ROLE_RESEARCH",
+    "MODEL_ROLE_REVIEW",
     "PROJECT_NAMESPACE_SLUG",
     "RESEARCH_MODES",
+    "REVIEW_DISPATCHES",
     "REVISION_KINDS",
+    "THINKING_LEVELS",
     "TAKE_STATUSES",
     "TAKE_VISIBILITIES",
     "TRADING_CALENDAR_IDENTIFIER",
@@ -189,9 +286,14 @@ __all__ = [
     "connector_mode",
     "connector_release_uid",
     "connector_url",
+    "ModelSelection",
+    "inference_credential",
     "inference_environment_uid",
     "inference_model",
     "inference_provider",
     "inference_thinking",
+    "model_role",
+    "model_roles",
     "research_mode",
+    "review_dispatch",
 ]

@@ -210,3 +210,16 @@ def hosted_caller(monkeypatch: pytest.MonkeyPatch, clean_identity_environment: N
         classmethod(lambda cls: from_environment(cls, fetch_jwks=discover_keys)),
     )
     return caller
+
+
+@pytest.fixture(autouse=True)
+def fresh_read_caches():
+    """Per-process read caches never leak between tests."""
+    from hunch.instruments.services import forget_cached_instruments
+    from hunch.portfolios.graph import _table_ref
+
+    forget_cached_instruments()
+    _table_ref.cache_clear()
+    yield
+    forget_cached_instruments()
+    _table_ref.cache_clear()

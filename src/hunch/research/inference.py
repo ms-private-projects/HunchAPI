@@ -20,12 +20,7 @@ from hunch.research.models import (
     ResearchOutput,
 )
 from hunch.research.sources import Evidence, evidence_block
-from hunch.settings import (
-    inference_environment_uid,
-    inference_model,
-    inference_provider,
-    inference_thinking,
-)
+from hunch.settings import MODEL_ROLE_RESEARCH, inference_environment_uid, model_role
 from hunch.takes import Take
 from hunch.takes.services import TakeConstraints
 
@@ -132,14 +127,22 @@ def _user_prompt(
 
 
 class RecordedCompletion:
-    """The parsed JSON answer of one recorded completion and its platform identifiers."""
+    """The parsed JSON answer of one recorded completion, its platform identifiers and its model."""
 
     def __init__(
-        self, content: dict[str, Any], request_uid: str | None, conversation_uid: str | None
+        self,
+        content: dict[str, Any],
+        request_uid: str | None,
+        conversation_uid: str | None,
+        *,
+        provider: str | None = None,
+        model: str | None = None,
     ):
         self.content = content
         self.request_uid = request_uid
         self.conversation_uid = conversation_uid
+        self.provider = provider
+        self.model = model
 
 
 def inference_client(client: Any | None = None) -> Any:
@@ -166,20 +169,31 @@ def recorded_completion(
     timeout: int = 240,
     client: Any | None = None,
     what: str = "research",
+    role: str = MODEL_ROLE_RESEARCH,
 ) -> RecordedCompletion:
-    """One recorded, schema-constrained completion; raises ``ResearchError`` on any failure."""
+    """One recorded, schema-constrained completion on the role's model.
+
+    The role (`hunch.settings.model_role`) decides the provider, model, thinking level and
+    credential, so each kind of call can run on a different model. Raises ``ResearchError`` on any
+    failure.
+    """
     inference = inference_client(client)
     try:
+        selection = model_role(role)
+    except ValueError as exc:
+        raise ResearchError(f"The {what} model role is misconfigured: {exc}") from exc
+    try:
         result = inference.complete(
-            provider=inference_provider(),
-            model=inference_model(),
+            provider=selection.provider,
+            model=selection.model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            thinking_level=inference_thinking(),
+            thinking_level=selection.thinking,
+            custom_id=selection.credential,
             response_schema=schema,
-            metadata={"operation": operation, **metadata},
+            metadata={"operation": operation, "model_role": role, **metadata},
             idempotency_key=f"{idempotency_prefix}-{uuid.uuid4().hex[:8]}",
             timeout=timeout,
         )
@@ -199,6 +213,8 @@ def recorded_completion(
         content,
         str(result.request_uid) if result.request_uid else None,
         str(result.conversation_uid) if result.conversation_uid else None,
+        provider=str(getattr(result, "provider", "") or selection.provider),
+        model=str(getattr(result, "model", "") or selection.model),
     )
 
 
@@ -206,11 +222,15 @@ def inference_research(
     take: Take,
     instruments: Sequence[HunchInstrument],
     *,
-    revision: int = 1,
+    number: int = 1,
     client: Any | None = None,
     evidence: Sequence[Evidence] = (),
 ) -> ResearchOutput:
-    """One recorded completion; raises ``ResearchError`` when no usable answer comes back."""
+    """One recorded completion; raises ``ResearchError`` when no usable answer comes back.
+
+    `number` is the research's ordinal for the take (ADR 0008): the recorded call is idempotent
+    per research, and the number is in its metadata.
+    """
     constraints = TakeConstraints.model_validate(take.constraints_json or {})
     tradable = [row for row in instruments if row.is_tradable]
     if not tradable:
@@ -220,8 +240,8 @@ def inference_research(
         user=_user_prompt(take, constraints, tradable, evidence),
         schema=response_schema([row.ticker for row in tradable]),
         operation="hunch-take-research",
-        metadata={"take_uid": str(take.uid), "revision": revision},
-        idempotency_prefix=f"hunch-take-{take.uid}-revision-{revision}",
+        metadata={"take_uid": str(take.uid), "research_number": number},
+        idempotency_prefix=f"hunch-take-{take.uid}-research-{number}",
         client=client,
     )
     content = completion.content
@@ -245,6 +265,8 @@ def inference_research(
         inference_request_uids=[completion.request_uid] if completion.request_uid else [],
         conversation_uid=completion.conversation_uid,
         evidence=list(evidence),
+        provider=completion.provider,
+        model=completion.model,
     )
 
 

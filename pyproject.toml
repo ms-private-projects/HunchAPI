@@ -22,7 +22,7 @@ dependencies = [
   # Hunch reads exchange sessions itself (`hunch.market_data`), so it declares the calendars too.
   "pandas-market-calendars>=5.4.0",
   # Runtime of the Hunch Agent (`api/agent/main.py`); the platform runs it from this image.
-  "ms-tau-sdk>=2.0.23,<3",
+  "ms-tau-sdk>=2.0.28,<3",
   "jsonschema>=4.23",
   "pydantic>=2.9",
 ]

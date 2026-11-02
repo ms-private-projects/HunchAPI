@@ -76,9 +76,12 @@ def applied_revisions(migration: Any) -> tuple[str, ...]:
     """
     import sqlalchemy as sa
 
+    from hunch.runtime import wait_for_metatables_api
     from metatables import MetaTable
     from metatables.compiled_sql.v1 import compile_sqlalchemy_statement
     from msm.api.base import operation_result_rows
+
+    wait_for_metatables_api()
 
     registry = migration.alembic_registry
     registrations = MetaTable.filter(identifier=registry.__metatable_identifier__)

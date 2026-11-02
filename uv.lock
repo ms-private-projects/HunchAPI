@@ -523,7 +523,7 @@ requires-dist = [
     { name = "mainsequence", extras = ["mcp"], specifier = ">=9.0.30,<10" },
     { name = "mainsequence-metatable", specifier = ">=0.1.57,<0.2" },
     { name = "ms-markets", extras = ["portfolios"], specifier = ">=3.0.1,<4" },
-    { name = "ms-tau-sdk", specifier = ">=2.0.23,<3" },
+    { name = "ms-tau-sdk", specifier = ">=2.0.28,<3" },
     { name = "pandas-market-calendars", specifier = ">=5.4.0" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "uvicorn", specifier = ">=0.52.4,<0.53" },
@@ -954,7 +954,7 @@ portfolios = [
 
 [[package]]
 name = "ms-tau-sdk"
-version = "2.0.26"
+version = "2.0.28"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -973,9 +973,9 @@ dependencies = [
     { name = "tau-ai" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a2/16/8bcc757ddeb45977ea4498d279b43869075173943686612243914a18f2e1/ms_tau_sdk-2.0.26.tar.gz", hash = "sha256:537039b2c41568753904ab6113c11ed58894ca9bc434fa3c7f96cd6fb072ae4c", size = 342731, upload-time = "2026-10-24T22:18:46.013Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/98/49/9621934d88ace3f5972042f46431a88c5dfb7a86f00bc66ac0d6a7cf66eb/ms_tau_sdk-2.0.28.tar.gz", hash = "sha256:1a02db5992618a0cceb5de664f8bd2e8ce07490e4e86e9d84d2ec5d2f85ac7f0", size = 343964, upload-time = "2026-10-30T15:33:00.86Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/a2/cbf9adb2dcfa8f203a9abcfbc5d8d95bab64882582d96722fea50531e199/ms_tau_sdk-2.0.26-py3-none-any.whl", hash = "sha256:b59edc040d7a456357e1fbc94037aac6d7035ed768603b89670392a24e7476e3", size = 364769, upload-time = "2026-10-24T22:18:44.27Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/88/5bb5e48f387aa14254104e0dcd88355efa38d75dce744c21f9d4892303f4/ms_tau_sdk-2.0.28-py3-none-any.whl", hash = "sha256:ccd7a26de434989c459be697a7d36510079e74d205fddfed5c3dc463e0e0a543", size = 365335, upload-time = "2026-10-30T15:32:59.106Z" },
 ]
 
 [[package]]
