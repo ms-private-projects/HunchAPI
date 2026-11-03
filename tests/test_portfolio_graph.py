@@ -31,6 +31,28 @@ def offline_prices(monkeypatch):
     monkeypatch.setattr(graph, "external_prices_ref", lambda: ref)
 
 
+@pytest.fixture(autouse=True)
+def offline_catalog(monkeypatch):
+    """Bind Hunch's series tables to stand-in catalog rows, as a signed-in process would.
+
+    An updater looks up its output table's catalog row when it is built; without a MetaTables
+    Environment (a fresh clone, CI) that lookup fails before any hash is computed.
+    """
+    for number, storage in enumerate(graph.portfolio_series().values(), start=10):
+        if storage.get_time_index_meta_table() is not None:
+            continue
+        row = TimeIndexMetaTable.model_construct(
+            uid=str(uuid.UUID(int=number)), data_source_uid=str(uuid.UUID(int=8))
+        )
+        for name, value in (
+            ("__time_index_meta_table__", row),
+            ("__metatable__", row),
+            ("__metatable_uid__", row.uid),
+            ("__metatable_data_source_uid__", row.data_source_uid),
+        ):
+            monkeypatch.setattr(storage, name, value, raising=False)
+
+
 def _hashes(take_uid: uuid.UUID, **kwargs) -> dict[str, str]:
     portfolio = SimpleNamespace(
         uid=uuid.uuid5(take_uid, "portfolio"),

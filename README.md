@@ -70,7 +70,7 @@ the broker and the market ledger are replaced by fakes, a deterministic research
 venue.
 
 ```bash
-git clone git@github.com:ms-private-projects/HunchAPI.git && cd HunchAPI
+git clone https://github.com/ms-private-projects/HunchAPI.git && cd HunchAPI
 uv sync
 uv run pytest -q    # 183 passed, 3 skipped (those need the local MetaTables runtime)
 ```
@@ -466,6 +466,8 @@ Their Jobs are deployed hosted as well.
 - Hunch inside Muse as an agent is coming soon.
 
 ## Documentation
+
+[docs/README.md](docs/README.md) indexes every document. The ones to read first:
 
 - [docs/muse.md](docs/muse.md): how Hunch uses Muse, role by role, with the measured runs.
 - [docs/walkthrough.md](docs/walkthrough.md): a take end to end, its guardrails and the tests.
