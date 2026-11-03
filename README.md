@@ -1,15 +1,186 @@
-# hunchapi
+# Hunch
 
-Hunch turns a person's investment thesis, their *take*, into a portfolio of US-listed equities that
-Hunch builds, monitors and, when the person authorises it, trades through their own brokerage
-account at Alpaca or Interactive Brokers. This repository is the backend: the Main Sequence FastAPI
-application, the one Hunch Agent (a TAU Harness Agent) and the Jobs.
+**Turn a thesis into a portfolio you can hold, measure and stand behind.**
 
-The product analysis and the build plan are in
-[docs/planning/0001-supertake-analysis-and-hunch-build-proposal.md](docs/planning/0001-supertake-analysis-and-hunch-build-proposal.md).
-Architecture decisions live under [docs/adrs/](docs/adrs/).
+## Before and during the hackathon
 
-## Principles
+Hunch is our entry to the
+[Meta Global AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon),
+which started on 26 October 2026 at 17:00 UTC. This repository started two days earlier, on
+24 October. Its history is untouched, so every date below can be checked with `git log`.
+
+**Before the hackathon (24–25 October).** On 24 October the Main Sequence platform created the
+repository from its project template (one commit, by `ms_pod`). On 25 October we built a first
+working version in 17 commits:
+- the Hunch tables, the API, the Agent and the workflow;
+- profiles and takes;
+- research, daily bars, the basket signal and practice portfolios;
+- linked accounts, funding, proposals, execution, daily reviews, the leaderboard and notifications;
+- performance metrics, research with citations and the email digest;
+- a first hosted deploy to the development Environment.
+
+Hosted research was then a heuristic that called no model, and the Agent was configured on a
+non-Meta model.
+
+**During the hackathon (26 October onwards).**
+- **Meta's Muse models do all the model work.** Take research runs on Muse Wonder 1.0. The Hunch
+  Agent, the daily review and the thesis critique run on Muse Spark 1.3. Each role picks its own
+  model (ADR 0007), every call goes through the platform's recorded inference, and research
+  answers must fill a strict schema or are retried once.
+- **Research and construction are separate Jobs** (ADR 0008). Research holds the model credential;
+  the build calls no model and decides the weights in code.
+- **Hunch moved to ms-markets 3.x** and now reaches the market ledger only through the Markets API
+  (ADRs 0005 and 0006).
+- **Hosted runs are reliable on the platform.** Builds follow their Job runs, wait for sleeping
+  APIs, backfill daily bars in bounded runs and read in batches. The daily sweep starts one review
+  per active take. A take rebuilt in the same session now gets its new basket (ADR 0002).
+- **The product plan was rewritten** around Hunch's own ontology.
+- **The demo film** in [`films/hunch-demo-video`](films/hunch-demo-video).
+
+**How much was done during the hackathon.** This is measured on the repository as it stands today:
+
+| Measure | Before 26 Oct, 17:00 UTC | During the hackathon |
+| --- | --- | --- |
+| Commits on `main` | 19 (the template commit and 18 of ours) | 50 (72%) |
+| Lines of code, tests and docs | 74% | **26%** |
+
+Each line counts for the commit that last wrote it (`git blame -w -M -C`), so moved lines and
+whitespace changes keep their original date. Lock files, generated data and media are left out.
+By area, 18% of the application code, 42% of the tests and 49% of the docs were written during
+the hackathon. The Command Center site lives in the sibling `hunch` repository and follows the
+same timeline: it was scaffolded on 24 October, its first version came on 25 October, and 4 of
+its 11 commits came during the hackathon.
+
+## How Main Sequence supports the build
+
+Hunch is built and run on the Main Sequence platform. The platform supplies the infrastructure, so
+this repository holds only Hunch's own product logic:
+
+- **Hosting.** The platform created the repository and builds and deploys what
+  `.mainsequence/workflows/hunch-api.yaml` declares: the FastAPI application with its MCP server,
+  the Hunch Agent and the scheduled Jobs. Each runs in a development or Production Environment.
+- **Data.** MetaTables is the database: Hunch's tables live in the `hunch` namespace, with
+  migrations.
+- **Market ledger.** ms-markets, through the Markets API, holds assets, accounts, calendars,
+  portfolios and signals, and the contracts for portfolio time series.
+- **Brokers.** The Alpaca and Interactive Brokers connectors hold the broker credentials and
+  execute trades. Hunch never sees those credentials.
+- **The Agent.** The TAU Harness Agent runtime runs the Hunch Agent. It acts for the signed-in
+  person and can only use Hunch's MCP tools.
+- **Models.** Recorded inference gives access to Meta's Muse models and records every model call.
+- **Sign-in and the site.** The Command Center handles sign-in and identity for the site and every
+  API call.
+
+## What Hunch is
+
+Hunch takes an idea about the world, written in plain language, and turns it into a portfolio of
+US-listed equities. It researches the idea and cites its evidence, builds a weighted basket under
+hard guardrails, tracks that basket as a model portfolio from the day it goes live and, when the
+person links a brokerage account and says so, funds and trades it at Alpaca or Interactive
+Brokers. Every trading day it checks the portfolio against its target and the thesis against new
+evidence, and proposes or makes only the changes the person has authorised.
+
+This repository is the Hunch backend on Main Sequence: the FastAPI application with its MCP
+server, the Hunch Agent (a TAU Harness Agent) and the Jobs that research, build, review and
+execute. The Command Center site lives in the sibling `hunch` repository.
+
+## Demo film
+
+[![Hunch demo film](films/hunch-demo-video/poster.jpg)](films/hunch-demo-video/hunch-demo.mp4)
+
+[Watch the three-minute film](films/hunch-demo-video/hunch-demo.mp4). It follows a person from a hunch to
+a portfolio: writing a take, pressure-testing it with the Hunch Agent, research, the build under
+their rules, practice, funding at Alpaca or Interactive Brokers, the daily review and sharing. It
+ends on Hunch inside Muse, which is coming soon. The screens are cards in the style of the Hunch site
+with illustrative data, and practice returns are labelled simulated.
+
+The film was made as a [HyperFrames](https://hyperframes.heygen.com) project. To keep this
+repository light, only the published cut and its poster are committed; the project and its media
+stay on the team's machines ([`films/hunch-demo-video`](films/hunch-demo-video)).
+
+## The idea
+
+An investment idea and the portfolio that expresses it usually drift apart: the reasons live in a
+note, the positions live at the broker, and nobody checks whether one still justifies the other.
+Hunch keeps them together. The thesis is the unit of record. Every weight, review, proposal and
+order traces back to it, so a person can see why they own what they own, whether the reason still
+holds, and how the idea has done since it went live. Ideas are also social: a take can be
+published, forked by others with its lineage intact, and ranked against other takes.
+
+Three commitments shape the product:
+
+- **The person instructs.** Hunch expresses the person's thesis and shows its evidence and
+  reasoning. It is not an investment adviser, and returns earned without invested money are
+  labelled simulated.
+- **Non-custodial.** Money and broker credentials stay at the brokerage and in its connector.
+  Hunch holds neither, and a linked account can be revoked at any time.
+- **Accountable by construction.** Approval is the default, autopilot acts only within limits the
+  person can see, every model call is recorded, and the model proposes while code decides weights,
+  limits and orders.
+
+## Concepts
+
+| Concept | What it is |
+| --- | --- |
+| **Take** | A thesis in natural language with its constraints: horizon, cash buffer, single-name cap, maximum positions, exclusions, risk level and "what would change my mind". Private or public. |
+| **Research** | A numbered study of a take against the target universe: claims, beneficiaries and losers, and candidates with a role (`pure_play`, `supplier`, `enabler`, `hedge`, `defensive`), a case, risks, a conviction and cited evidence. Research sets no weights. |
+| **Evidence** | What research cites: quantitative facts computed from daily bars, news and fundamentals. |
+| **Basket and revision** | The weights and cash buffer that construction derives from one research under guardrails. Every change of the basket is a revision with its rationale. |
+| **Hunch portfolio** | The model portfolio that holds the basket over time and produces the take's performance since activation. |
+| **Linked account** | A brokerage account at Alpaca or Interactive Brokers that the person proved they own. |
+| **Execution mode** | `practice` (no orders), `approval` (the person signs off every trade) or `autopilot` (trades within visible limits). |
+| **Funding** | An amount of a linked account committed to one take. |
+| **Rebalance proposal** | The only way money moves: the trades that reach the target, with the person's decision or the autopilot check, and their execution state. |
+| **Daily review** | The trading-day check of drift and of the thesis, ending in hold, flagged, proposed or executed. |
+| **Fork and leaderboard** | A fork copies a public take into another person's control with its lineage; the leaderboard ranks public takes by return since activation. |
+| **Hunch Agent** | The one conversational agent. It helps the person write, understand and act on takes through the Hunch API's tools, and never calls a brokerage. |
+
+The full ontology, with the record behind each concept, is section 1 of the
+[plan](docs/planning/0001-hunch-product-and-build-proposal.md).
+
+## How a take moves
+
+```text
+ write ─▶ research ─▶ build ─▶ practice ─▶ fund ─▶ live ─▶ archive
+ draft    numbered,    built    active_     funding  active_
+          kept         │        practice             funded
+                       └─ performance record starts at activation
+
+ every trading day: drift + thesis check ─▶ hold · flagged · proposed · executed
+ any time:          publish ─▶ forks ─▶ leaderboard
+```
+
+1. **Write** a take and its constraints, alone or with the Hunch Agent, which can also critique the
+   thesis.
+2. **Research** it. Each research is kept and numbered, so the person can research again and
+   compare.
+3. **Build** from a research, with no model call: guardrails (tradability, liquidity,
+   concentration, cash buffer) turn candidates into weights, Hunch publishes them as the take's
+   signal and builds the Hunch portfolio.
+4. **Practice** it: the same reviews run and no orders are sent.
+5. **Fund** it from a linked account in approval or autopilot mode. The funding becomes a
+   rebalance proposal; once approved, or once it passes the autopilot check, the venue connector
+   places the orders and Hunch reconciles the fills.
+6. **Review** it every trading day. Notifications and an optional email digest report each step.
+7. **Publish** it. Others fork it, and public takes rank on the leaderboard.
+
+## Architecture
+
+```text
+            Command Center site (sibling `hunch` repository)
+              │ requests as the person          │ chat, one session per take
+              ▼                                 ▼
+   ┌────────────────────────────┐  MCP   ┌────────────────────────────┐
+   │ Hunch API   /v1 · /mcp     │◀───────│ Hunch Agent (TAU harness)  │
+   │ Hunch Jobs                 │        │ acts for the person,       │
+   │ (the `hunch` package)      │        │ Hunch tools only           │
+   └───┬───────────┬────────────┘        └────────────────────────────┘
+       │           │            │
+       ▼           ▼            ▼
+   Markets API   venue        recorded inference
+   (ms-markets   connectors   (one model per role:
+    ledger)      Alpaca, IBKR  research, review, analysis)
+```
 
 - **ms-markets is the market ledger, reached through the Markets API.** Assets, accounts,
   calendars, portfolios, signals and funds are Markets registries that Hunch reads and writes only
@@ -20,9 +191,10 @@ Architecture decisions live under [docs/adrs/](docs/adrs/).
   the Alpaca and IBKR connector APIs through typed clients; the Agent and the model never call a
   connector. Hunch never holds a broker credential.
 - **Hunch owns portfolio and execution logic; the connected venue API executes the trades.**
-- **One agent.** The Hunch Agent converses and performs bounded actions through the API's MCP tools.
-  Research, construction and the daily review are deterministic service code in Jobs; research
-  and construction are independent steps (ADR 0008).
+- **Research and construction are separate steps** (ADR 0008). The research Job holds the model
+  credential; the build Job holds none.
+- **One agent.** The Hunch Agent converses and performs bounded actions through the API's MCP
+  tools. Research, construction and the daily review are deterministic service code in Jobs.
 
 ## Repository layout
 
@@ -36,13 +208,14 @@ src/hunch/               # the installable package
   research/              # research: thesis -> candidates (recorded inference or heuristic), kept per take (runs.py); construction: guardrails
   takes/                 # HunchTake, HunchTakeResearch, HunchTakeRevision and the take lifecycle
   portfolios/            # HunchPortfolio, the basket signal, the ms-markets portfolio graph, builds from a stored research
+  analysis/              # analysis-only tools such as the thesis critique (ADR 0007)
   connectors/            # the venue connector port: Alpaca and IBKR HTTP clients, simulated venue
   funding/               # HunchFunding, HunchRebalanceProposal, fund and target ledger, execution
   reviews/               # HunchDailyReview and the daily review
   community/             # leaderboard snapshots and notifications
   channels/              # email digest: composition, delivery, outbox/platform/smtp senders
   operations/            # research/build/review orchestration (inline locally, Jobs hosted)
-  migrations/            # `hunch.migrations:migration`, schema gate, namespace move, 0001-0005
+  migrations/            # `hunch.migrations:migration`, schema gate, namespace move, revisions
   series.py              # Hunch's instances of the ms-markets time-series contracts
   api/app/               # routers, services, schemas, identity, errors, capabilities, mcp_server
   agent_tools.py         # the tool catalog the API serves at /mcp
@@ -53,8 +226,9 @@ scripts/dev_stack.sh     # local stack: MetaTables, Markets API, loopback API, l
 scripts/local_markets_api.py  # loopback Markets API, run with the ms-markets checkout's interpreter
 .tau/SYSTEM.md           # the Agent's runtime instructions
 .agents/                 # agent_card.json and the published skills (.agents/skills/mcp_tools)
-.mainsequence/workflows/ # API, Agent and migration Job declarations (workflow API 3.0.0)
-docs/                    # planning documents and ADRs
+.mainsequence/workflows/ # API, Agent and Job declarations (workflow API 3.0.0)
+docs/                    # plans, ADRs and the hosted runbook
+films/hunch-demo-video/  # the demo film: the published cut and its poster
 tests/
 ```
 
@@ -106,48 +280,83 @@ PYTHONPATH=src .venv/bin/python -m hunch.migrations.namespace_move --local
 scripts/dev_stack.sh all      # or: markets | api | tau | site
 ```
 
-A take is built in two independent steps (ADR 0008): `POST /v1/takes/{uid}/actions/research`
-studies the thesis against the target universe and keeps the result as the take's next numbered
-research (candidates with roles and conviction, no weights; `GET .../research` lists them), and
-`POST .../actions/build` constructs the basket from a stored research (`research_uid`, the latest
-by default), publishes it and builds the portfolio, with no model call. Hosted, each step is its
-own Job (`Hunch Take Research`, which holds the model credential, and `Hunch Take Build`, which
-holds none).
-
-Local defaults: research and builds run inline with heuristic research (`HUNCH_RESEARCH_MODE`), and the venue
-connectors are simulated (`HUNCH_CONNECTOR_MODE=simulated`: a paper venue inside Hunch that fills
-orders at the last stored close and keeps its records as a connector does, Markets rows through
-the Markets API and its holdings and fills in its own instances). Set
-`HUNCH_CONNECTOR_MODE=live` with `HUNCH_ALPACA_CONNECTOR_URL` / `HUNCH_IBKR_CONNECTOR_URL` to call
-the connector releases, and `HUNCH_RESEARCH_MODE=inference` with `HUNCH_INFERENCE_ENVIRONMENT_UID`
-to research through recorded inference (ADR 0002 explains the local finding).
-
-Model roles (ADR 0007): in `inference` mode each kind of recorded model call selects its own
-provider, model, thinking level and credential, so one deployment mixes models: `research`
-(take research), `review` (daily reviews) and `analysis` (the analysis-only tools, such as the thesis
-critique). Every role starts from `HUNCH_INFERENCE_PROVIDER`, `HUNCH_INFERENCE_MODEL`,
-`HUNCH_INFERENCE_THINKING` and `HUNCH_INFERENCE_CREDENTIAL` (a configured credential's
-`custom_id`); `HUNCH_MODEL_<ROLE>` overrides any of them with space-separated `key=value` pairs,
-for example `HUNCH_MODEL_ANALYSIS="provider=openrouter model=anthropic/claude-haiku-4.5
-thinking=low"`. The Hunch Agent's own conversation model is the Harness Agent declaration in the
-workflow file, not a role; development runs it on `meta` / `muse-spark-1.3` as well (`ms-tau-sdk`
-2.0.28 or later, which knows providers outside Tau's catalog). `GET /v1/project-state/configuration` reports every role. The
-scheduled review sweep (`run_hunch_daily_review.py --scheduled`) reviews in its own process by
-default; with `HUNCH_REVIEW_DISPATCH=job` (the hosted dispatcher) it starts one review Job run per
-active take, three at a time, so the reviews run on that Job's credential and in parallel.
-
-Research sources: `HUNCH_RESEARCH_SOURCES` (default `quant`; add `finnhub` with
-`HUNCH_FINNHUB_API_KEY` for news and fundamentals). Email digests: `HUNCH_EMAIL_SENDER` (`outbox`
-locally, writes `.hunch-outbox/*.eml`; `platform` hosted), `HUNCH_SITE_URL` for links; run
-`src/jobs/run_hunch_email_digest.py --scheduled` after opting in on the profile.
+Then create, research and build a take:
 
 ```bash
 curl http://127.0.0.1:8601/v1/project-state/capabilities
-curl -X POST http://127.0.0.1:8601/v1/profile/accounts/actions/link \
-  -H 'content-type: application/json' -d '{"venue":"alpaca"}'
+curl -X POST http://127.0.0.1:8601/v1/takes -H 'content-type: application/json' \
+  -d '{"title":"Grid storage","thesis_text":"Grid-scale batteries become the default way utilities balance renewables."}'
+curl -X POST http://127.0.0.1:8601/v1/takes/<take_uid>/actions/research
+curl -X POST http://127.0.0.1:8601/v1/takes/<take_uid>/actions/build
 ```
 
-The hosted entry point `api.app.main:app` verifies the platform's caller assertion instead.
+`POST .../actions/research` keeps the result as the take's next numbered research
+(`GET .../research` lists them), and `POST .../actions/build` constructs the basket from a stored
+research (`research_uid`, the latest by default), publishes it and builds the portfolio. Hosted,
+each step is its own Job (`Hunch Take Research` and `Hunch Take Build`). The hosted entry point
+`api.app.main:app` verifies the platform's caller assertion instead of presenting your sign-in;
+call a hosted API with `Authorization: Bearer $(mainsequence auth token)`.
+
+## Configuration
+
+Local defaults: research and builds run inline with heuristic research, and the venue connectors
+are simulated (a paper venue inside Hunch that fills orders at the last stored close and keeps its
+records as a connector does).
+
+| Variable | Purpose |
+| --- | --- |
+| `HUNCH_RESEARCH_MODE` | `heuristic` or `inference` (recorded model calls; needs `HUNCH_INFERENCE_ENVIRONMENT_UID`, ADR 0002) |
+| `HUNCH_RESEARCH_SOURCES` | Evidence sources, default `quant`; add `finnhub` with `HUNCH_FINNHUB_API_KEY` for news and fundamentals |
+| `HUNCH_INFERENCE_PROVIDER`, `_MODEL`, `_THINKING`, `_CREDENTIAL` | The recorded-inference selection every model role starts from (credential = a configured credential's `custom_id`) |
+| `HUNCH_MODEL_<ROLE>` | Per-role overrides for `RESEARCH`, `REVIEW` and `ANALYSIS`, as space-separated `key=value` pairs, for example `"provider=openrouter model=anthropic/claude-haiku-4.5 thinking=low"` (ADR 0007) |
+| `HUNCH_CONNECTOR_MODE` | `simulated` or `live`; live calls `HUNCH_ALPACA_CONNECTOR_URL` / `HUNCH_IBKR_CONNECTOR_URL` |
+| `HUNCH_REVIEW_DISPATCH` | `job` makes the scheduled review sweep start one review Job run per active take, three at a time |
+| `HUNCH_EMAIL_SENDER` | `outbox` (writes `.hunch-outbox/*.eml`), `platform` or `smtp`; `HUNCH_SITE_URL` sets the links |
+
+The Hunch Agent's own conversation model is the Harness Agent declaration in the workflow file, not
+a role. `GET /v1/project-state/configuration` reports every role.
+
+## API
+
+Every route requires a signed-in caller; routes read the caller only through
+`hunch.api.app.identity`, and ownership follows the person the request acts for.
+
+| Group | Operations |
+| --- | --- |
+| `/health`, `/v1/project-state` | readiness, capability catalog, disclaimers, configuration |
+| `/v1/profile`, `/v1/profile/accounts` | the profile; linkable accounts, link, revoke, holdings |
+| `/v1/instruments` | the instrument universe |
+| `/v1/takes` | list, create, read, edit; actions `critique-thesis`, `research`, `build`, `activate-practice`, `refresh`, `set-execution-mode`, `fund`, `withdraw`, `review`, `publish`, `unpublish`, `fork`, `archive`; reads `research`, `revisions`, `weights`, `performance`, `funding`, `reviews` |
+| `/v1/fundings`, `/v1/proposals` | fundings; proposals with `approve`, `reject` and `sync` |
+| `/v1/leaderboard`, `/v1/notifications` | the ranking; the feed and `mark-read` |
+| `/mcp` | the Agent's tools and the published skills |
+
+## The Hunch Agent
+
+`.mainsequence/workflows/hunch-api.yaml` declares one Harness Agent (`api/agent/main.py`) that acts
+for the requester and sees only the `hunch` MCP tools: `hunch_project_state`, `hunch_profile`,
+`hunch_query_takes`, `hunch_manage_take`, `hunch_research_take`, `hunch_build_take`,
+`hunch_query_portfolio`, `hunch_analyze_take`, `hunch_query_instruments`, `hunch_accounts`,
+`hunch_funding`, `hunch_proposals`, `hunch_reviews`, `hunch_leaderboard`, `hunch_notifications`
+and `hunch_get_job_run_status`. Its runtime instructions are `.tau/SYSTEM.md`; its skills are
+published from `.agents/skills/mcp_tools/`. Tools take no credentials and no UIDs of people,
+archives need an exact `DELETE <uid>`, and long work returns a JobRun UID.
+
+## Jobs
+
+| Job | Schedule (UTC) | Work |
+| --- | --- | --- |
+| `hunch-migrate` | before every API rollout | applies `hunch.migrations:migration` |
+| `hunch-take-research` | on demand | researches one take |
+| `hunch-take-build` | on demand | builds one take from a stored research, no model call |
+| `hunch-portfolio-refresh` (+ dispatcher) | 01:30 Tue–Sat | brings prices and portfolio values up to date |
+| `hunch-daily-review` (+ dispatcher) | 13:00 Mon–Fri | drift, thesis check, proposal or autopilot execution |
+| `hunch-execution-sync` | every 15 min, 13:00–21:45 Mon–Fri | order states, fills, holdings |
+| `hunch-leaderboard` | 02:30 Tue–Sat | leaderboard snapshot |
+| `hunch-email-digest` | 13:30 Mon–Fri | digests for people who opted in |
+
+Only the workflow file creates Jobs and sets their schedules; every launcher except the migration
+starts with the schema gate.
 
 ## Schema
 
@@ -163,23 +372,39 @@ PYTHONPATH=src .venv/bin/python -m hunch.migrations.namespace_move --local
 metatables --local migrations upgrade --provider hunch.migrations:migration head
 ```
 
-Workloads need `data_writer` (the Migrations Job `editor`) on the `hunch` namespace from its owner
+Workloads need `data_writer` (the migration Job `editor`) on the `hunch` namespace from its owner
 and no role on `mainsequence.markets`; the workflow file declares the branch, MetaTables, Markets
-API and Agent access (`docs/operations/hosted-deploy.md`).
+API and Agent access ([docs/operations/hosted-deploy.md](docs/operations/hosted-deploy.md)).
 
 ## Deployment
 
 `.mainsequence/workflows/hunch-api.yaml` declares the `hunch` FastAPI release (with `/mcp`), the
-one `hunch-agent` Harness Agent (acting for the requester, tools from the `hunch` MCP only) and the
-`hunch-migrate` Job that gates the API rollout. The Agent's provider and model are set there.
+one `hunch-agent` Harness Agent, the Jobs above and the `hunch-migrate` Job that gates the API
+rollout. The model of each role and of the Agent is set there.
 
 ## Status
 
-Phases 0 to 3 of the plan run locally end to end: a thesis becomes a built take with a basket, a
-model portfolio and a performance record; it can be practiced, published, forked and ranked; a
-linked account can fund it in approval or autopilot mode, proposals execute through the venue
-connector (simulated locally), the daily review watches drift and the thesis, and notifications
-report every step. Hosted execution waits for the Alpaca connector's execution capability (plan
-§6.1); Interactive Brokers executes manually (ADR 0003). Phase 4 adds risk metrics, research
-grounded in cited evidence (bar facts, Finnhub news and fundamentals) and the daily email digest;
-inbound email replies wait on a platform channel (ADR 0004).
+A thesis becomes a researched, built take with a basket, a model portfolio and a performance
+record; it can be practiced, published, forked and ranked; a linked account can fund it in
+approval or autopilot mode; proposals execute through the venue connector; the daily review
+watches drift and the thesis; and notifications and the email digest report every step. All of it
+runs locally end to end with the simulated venue. Hosted, research runs through recorded
+inference. Hosted execution waits for the connector releases' execution capability (plan §6.1);
+Interactive Brokers executes manually (ADR 0003); inbound email replies wait on a platform channel
+(ADR 0004).
+
+## Documentation
+
+- [docs/planning/0001-hunch-product-and-build-proposal.md](docs/planning/0001-hunch-product-and-build-proposal.md):
+  what Hunch is, its ontology, the architecture and the delivery plan.
+- [docs/planning/0002-hunch-under-the-markets-api-boundary.md](docs/planning/0002-hunch-under-the-markets-api-boundary.md):
+  Hunch on ms-markets 3.x and the Markets API boundary.
+- [docs/adrs/](docs/adrs/): decisions 0001 (foundation) to 0008 (research and construction are
+  separate steps).
+- [docs/operations/hosted-deploy.md](docs/operations/hosted-deploy.md): the hosted runbook.
+
+## Disclaimer
+
+Hunch does not give investment advice. The person states the thesis and authorises every trade, or
+the autopilot limits that bound them. Returns shown for takes that hold no invested money are
+simulated, and past performance does not predict future results.
