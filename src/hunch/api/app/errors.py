@@ -21,6 +21,7 @@ def api_http_error(exc: Exception) -> HTTPException:
     """Translate a service exception into the shared `{code, message, retryable}` error body."""
     from hunch.connectors.base import ConnectorCapabilityUnavailable, ConnectorError
     from hunch.funding.services import FundingError
+    from hunch.operations.builds import JobStartUnconfirmed
     from hunch.profiles.accounts import LinkError
     from hunch.research.guardrails import GuardrailError
     from hunch.research.models import ResearchError
@@ -42,6 +43,10 @@ def api_http_error(exc: Exception) -> HTTPException:
         return api_error(status_code=409, code="link_rule", message=str(exc))
     if isinstance(exc, GuardrailError):
         return api_error(status_code=409, code="basket_not_investable", message=str(exc))
+    if isinstance(exc, JobStartUnconfirmed):
+        # Not a failure: the run may still start, and starting again could run it twice.
+        logger.warning("Job start unconfirmed: %s", exc)
+        return api_error(status_code=504, code="job_start_unconfirmed", message=str(exc))
     if isinstance(exc, ResearchError):
         logger.warning("Research unavailable: %s", exc)
         return api_error(

@@ -58,6 +58,38 @@ decision. The strongest model belongs to the first; no model belongs to the seco
    role) and the thesis critique (the `analysis` role) are their own calls and read no research
    row.
 
+## Incomplete research answers (2026-11-02)
+
+On development the research of take `3cfdd6d6` (research `a037d2e2`) on Muse Wonder 1.0 came
+back schema-valid but empty: no candidate had a `case`, the brief had no `claims`, and two
+electric utilities (DUK, NEE) were tagged `pure_play` on a water-utilities thesis. The schema put
+no lower bound on those fields and the prompt never described them. Since then:
+
+- The research schema requires at least one claim and a non-empty `case` on every candidate
+  (`minItems`, `minLength`). The system prompt describes every field of the answer and every
+  role. `pure_play` means the thesis is the instrument's business: a company in a neighbouring
+  industry, or a diversified one with one exposed division, is not a pure play, and when the
+  universe holds none no candidate takes the role.
+- Code checks the same fields, because a provider's strict mode may accept these keywords
+  without enforcing them (ADR 0007: Meta's documented strict subset does not mention the size
+  keywords). Blank claims are dropped and cases are trimmed. An answer with no claim, or with a
+  candidate without a case, is **retried once**: a second recorded request whose prompt names the
+  empty fields, with `attempt: 2` in its metadata and the idempotency prefix
+  `hunch-take-<uid>-research-<n>-retry`. The research keeps both request UIDs. A second
+  incomplete answer fails the research with a `ResearchError` (502 `research_unavailable` through
+  the API, exit 1 in the Job) and stores no row. An answer that does not match the contract still
+  fails at once, without a retry.
+- A retry rather than an immediate refusal, because an empty field is a lapse of one answer, not
+  of the configuration: refusing would only make the person start the same research again. One
+  retry costs at most one more call (the first Wonder research answered in 31 seconds) inside the
+  Job's 30-minute limit. Only one, because a model that leaves the fields empty twice points at
+  the model or the prompt, and that should surface as a failure.
+- Research stored before this change may have empty cases or claims; it reads back and builds as
+  before. Roles cannot be checked in code: the prompt is their only control, and the guardrails
+  still size by role.
+- Meta already accepted `maxLength`, `maxItems` and `minItems` in Hunch's schemas; the first
+  hosted research after this change shows whether it also accepts `minLength`.
+
 ## Consequences
 
 - The research role can run on the strongest model and the build Job needs no model at all;

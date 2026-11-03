@@ -1,8 +1,9 @@
 """Research through Main Sequence recorded inference.
 
-One structured completion per build: the model receives the thesis, the person's constraints and
-the whole instrument universe, and must answer with a brief, candidates chosen from that universe
-only, and a rationale. The platform records the request; its UID is kept on the revision.
+One structured completion per research: the model receives the thesis, the person's constraints
+and the whole instrument universe, and must answer with a brief, candidates chosen from that
+universe only, and a rationale. An answer that leaves the claims or a candidate's case empty is
+retried once (ADR 0008). The platform records each request; their UIDs are kept on the research.
 """
 
 from __future__ import annotations
@@ -33,13 +34,42 @@ Rules:
 person's constraints allow leveraged or inverse products, at most one hedge.
 - Respect the person's constraints: exclusions, risk level, horizon, number of positions.
 - Prefer liquid, well-known names. Do not concentrate on a single name.
-- Conviction is a relative sizing hint between 0 and 1.
 - Write the rationale in Markdown for the person: the thesis in one paragraph, why these holdings \
 express it, the roles, the main risks, and what would change your mind. Plain language, no hype.
 - Ground every claim about a company in the evidence list when it covers it, citing its id in \
 square brackets (for example [E3]) in the rationale and in each candidate's `citations`. When the \
 evidence does not cover a point, say it rests on general knowledge; never invent a source.
 - You are not an investment adviser; the person decides. Never promise returns.
+
+Roles (each candidate's `role`):
+- `pure_play`: the thesis is the instrument's business. Most of the company's revenue or profit \
+comes from the very activity the thesis is about, or the fund holds only that theme. A company in \
+a neighbouring industry is not a pure play (an electric utility is not a pure play on water), and \
+neither is a diversified company with one exposed division. When the universe holds no pure play \
+for the thesis, give no candidate this role and say so in the rationale.
+- `supplier`: sells the inputs, equipment or services the pure plays depend on, including \
+chokepoints that few others can supply.
+- `enabler`: benefits second-hand when the thesis comes true (through its customers, its \
+infrastructure or its sector) without the thesis being its main business.
+- `hedge`: gains when the basket's main risk plays out, such as an inverse fund.
+- `defensive`: holds its value whatever happens to the thesis, such as short-term Treasuries.
+
+Fields of the answer. Every field is required and no text may be empty:
+- `brief.claims`: the thesis broken into one to ten specific, checkable statements that must hold \
+for the take to pay off, each a full sentence in your own words (for example "US data-centre \
+power demand doubles by 2030.").
+- `brief.beneficiaries` and `brief.losers`: the industries, kinds of company or named companies \
+that gain or lose if the claims hold.
+- `brief.keywords`: short search terms for the thesis: products, technologies, industries.
+- `candidates[].ticker`: a ticker from the universe, exactly as written there.
+- `candidates[].role`: one of the roles above, judged on the instrument's actual business.
+- `candidates[].case`: one to three sentences, specific to this instrument, on how it expresses \
+the thesis in its role: the business line, product or customers that tie it to the claims, with \
+evidence ids in square brackets when the evidence covers it. Never a phrase that fits any company.
+- `candidates[].risks`: what could make this instrument fail the thesis.
+- `candidates[].conviction`: a relative sizing hint between 0 and 1.
+- `candidates[].citations`: the evidence ids the case relies on; empty when no evidence applies.
+- `rationale_md`: the Markdown rationale described in the rules.
 """
 
 
@@ -75,7 +105,12 @@ def response_schema(tickers: Sequence[str]) -> dict[str, Any]:
                 "additionalProperties": False,
                 "required": ["claims", "beneficiaries", "losers", "keywords"],
                 "properties": {
-                    "claims": {"type": "array", "items": {"type": "string"}, "maxItems": 10},
+                    "claims": {
+                        "type": "array",
+                        "items": {"type": "string", "minLength": 1},
+                        "minItems": 1,
+                        "maxItems": 10,
+                    },
                     "beneficiaries": {"type": "array", "items": {"type": "string"}, "maxItems": 20},
                     "losers": {"type": "array", "items": {"type": "string"}, "maxItems": 20},
                     "keywords": {"type": "array", "items": {"type": "string"}, "maxItems": 30},
@@ -100,7 +135,7 @@ def response_schema(tickers: Sequence[str]) -> dict[str, Any]:
                             "type": "string",
                             "enum": ["pure_play", "supplier", "enabler", "hedge", "defensive"],
                         },
-                        "case": {"type": "string", "maxLength": 600},
+                        "case": {"type": "string", "minLength": 1, "maxLength": 600},
                         "risks": {"type": "array", "items": {"type": "string"}, "maxItems": 6},
                         "conviction": {"type": "number", "minimum": 0, "maximum": 1},
                     },
@@ -123,6 +158,41 @@ def _user_prompt(
         f"# Universe (choose tickers only from this list)\n{_universe_block(instruments)}\n\n"
         f"# Evidence (cite by id)\n{evidence_block(evidence)}\n\n"
         "Return the JSON object described by the schema."
+    )
+
+
+def _parse_answer(
+    content: dict[str, Any], constraints: TakeConstraints, known: set[str]
+) -> tuple[ResearchBrief, list[CandidateInstrument]]:
+    """The brief and candidates of one answer: blank claims dropped, cases trimmed, and only the
+    citations that name consulted evidence kept."""
+    try:
+        brief = ResearchBrief.model_validate(
+            {**content.get("brief", {}), "horizon_months": constraints.horizon_months}
+        )
+        candidates = []
+        for item in content["candidates"]:
+            candidate = CandidateInstrument.model_validate(item)
+            candidate.case = candidate.case.strip()
+            candidate.citations = [c for c in candidate.citations if c in known]
+            candidates.append(candidate)
+    except Exception as exc:
+        raise ResearchError("The research model answer does not match the contract.") from exc
+    brief.claims = [claim.strip() for claim in brief.claims if claim.strip()]
+    return brief, candidates
+
+
+def _blank_fields(brief: ResearchBrief, candidates: Sequence[CandidateInstrument]) -> list[str]:
+    """The required text an answer left empty, named by field."""
+    blank = [] if brief.claims else ["brief.claims"]
+    return blank + [f"the case of {item.ticker}" for item in candidates if not item.case]
+
+
+def _retry_note(blank: Sequence[str]) -> str:
+    return (
+        "\n\n# Your previous answer was incomplete\n"
+        f"It left these empty: {'; '.join(blank)}. Answer again in full, with at least one claim "
+        "in `brief.claims` and a `case` for every candidate."
     )
 
 
@@ -226,43 +296,52 @@ def inference_research(
     client: Any | None = None,
     evidence: Sequence[Evidence] = (),
 ) -> ResearchOutput:
-    """One recorded completion; raises ``ResearchError`` when no usable answer comes back.
+    """One recorded completion, retried once when the answer leaves required text empty; raises
+    ``ResearchError`` when no usable answer comes back.
 
     `number` is the research's ordinal for the take (ADR 0008): the recorded call is idempotent
-    per research, and the number is in its metadata.
+    per research, and the number is in its metadata. A provider's strict mode may not enforce the
+    schema's `minItems` and `minLength`, so the claims and every candidate's case are checked
+    here; the retry says which fields were empty, and a second incomplete answer is refused.
     """
     constraints = TakeConstraints.model_validate(take.constraints_json or {})
     tradable = [row for row in instruments if row.is_tradable]
     if not tradable:
         raise ResearchError("The instrument universe is empty.")
-    completion = recorded_completion(
-        system=SYSTEM_PROMPT,
-        user=_user_prompt(take, constraints, tradable, evidence),
-        schema=response_schema([row.ticker for row in tradable]),
-        operation="hunch-take-research",
-        metadata={"take_uid": str(take.uid), "research_number": number},
-        idempotency_prefix=f"hunch-take-{take.uid}-research-{number}",
-        client=client,
-    )
-    content = completion.content
-    try:
-        brief = ResearchBrief.model_validate(
-            {**content.get("brief", {}), "horizon_months": constraints.horizon_months}
+    user = _user_prompt(take, constraints, tradable, evidence)
+    schema = response_schema([row.ticker for row in tradable])
+    known = {item.id for item in evidence}
+    prompt, idempotency_prefix = user, f"hunch-take-{take.uid}-research-{number}"
+    request_uids: list[str] = []
+    for attempt in (1, 2):
+        completion = recorded_completion(
+            system=SYSTEM_PROMPT,
+            user=prompt,
+            schema=schema,
+            operation="hunch-take-research",
+            metadata={"take_uid": str(take.uid), "research_number": number, "attempt": attempt},
+            idempotency_prefix=idempotency_prefix,
+            client=client,
         )
-        known = {item.id for item in evidence}
-        candidates = []
-        for item in content["candidates"]:
-            candidate = CandidateInstrument.model_validate(item)
-            candidate.citations = [c for c in candidate.citations if c in known]
-            candidates.append(candidate)
-    except Exception as exc:
-        raise ResearchError("The research model answer does not match the contract.") from exc
+        if completion.request_uid:
+            request_uids.append(completion.request_uid)
+        content = completion.content
+        brief, candidates = _parse_answer(content, constraints, known)
+        blank = _blank_fields(brief, candidates)
+        if not blank:
+            break
+        prompt = user + _retry_note(blank)
+        idempotency_prefix = f"hunch-take-{take.uid}-research-{number}-retry"
+    else:
+        raise ResearchError(
+            "The research model left the brief's claims or a candidate's case empty twice."
+        )
     return ResearchOutput(
         mode="inference",
         brief=brief,
         candidates=candidates,
         rationale_md=str(content.get("rationale_md") or ""),
-        inference_request_uids=[completion.request_uid] if completion.request_uid else [],
+        inference_request_uids=request_uids,
         conversation_uid=completion.conversation_uid,
         evidence=list(evidence),
         provider=completion.provider,

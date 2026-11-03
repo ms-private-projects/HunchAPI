@@ -19,6 +19,7 @@ from hunch.research.models import CandidateInstrument, ResearchBrief, ResearchOu
 from hunch.takes import Take
 from hunch.takes.research import TakeResearch
 from hunch.takes.revisions import TakeRevision
+from mainsequence.client.exceptions import ConflictError, TransportError
 
 THESIS = "Humanoid robots are coming to every home within the decade."
 NOW = dt.datetime(2026, 10, 25, 9, 0, tzinfo=dt.timezone.utc)
@@ -264,6 +265,84 @@ def test_a_started_job_without_a_job_run_fails_the_build(client, monkeypatch) ->
         built = client.post(f"/v1/takes/{created['uid']}/actions/build")
     assert built.status_code >= 500
     assert JOB_RUN_UID not in built.text
+
+
+def _timed_out_build_job() -> SimpleNamespace:
+    """The build Job, whose start answers no more than a timeout."""
+    job = SimpleNamespace(
+        uid="47411030-b29e-431e-a00b-f4e7222a39a7",
+        name=builds.TAKE_BUILD_JOB_NAME,
+        execution_path=builds.TAKE_BUILD_JOB_PATH,
+    )
+
+    def run_job(timeout, command_args):
+        raise TransportError("Request failed after retries (expired)")
+
+    job.run_job = run_job
+    return job
+
+
+def _job_run(uid: str, args: list[str], *, started: dt.datetime | None, status: str):
+    return SimpleNamespace(uid=uid, command_args=args, execution_start=started, status=status)
+
+
+def test_a_timed_out_start_answers_the_run_it_created(client, monkeypatch) -> None:
+    created = client.post("/v1/takes", json={"title": "Robots", "thesis_text": THESIS}).json()
+    uid = created["uid"]
+    research = _fake_research(uid).research
+    monkeypatch.setenv("HUNCH_BUILD_EXECUTION", "job")
+    monkeypatch.setattr(builds, "JOB_START_LOOKUP_INTERVAL_SECONDS", 0)
+    args = ["--take-uid", uid, "--research-uid", str(research.uid)]
+    earlier = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)
+    # The first look finds only an hour-old failed build of the same research, which is not this
+    # start's run. The second, newest first, also lists another take's run and this start's own.
+    listings = [
+        [_job_run(str(uuid.uuid4()), args, started=earlier, status="FAILED")],
+        [
+            _job_run(
+                str(uuid.uuid4()), ["--take-uid", str(uuid.uuid4())], started=None, status="PENDING"
+            ),
+            _job_run(JOB_RUN_UID, args, started=None, status="PENDING"),
+            _job_run(str(uuid.uuid4()), args, started=earlier, status="FAILED"),
+        ],
+    ]
+    job = _timed_out_build_job()
+    with patch("mainsequence.client.Job") as job_model, patch("mainsequence.client.JobRun") as runs:
+        job_model.filter.return_value = [job]
+        runs.iter_filter.side_effect = lambda job__uid, timeout: iter(listings.pop(0))
+        built = client.post(f"/v1/takes/{uid}/actions/build")
+    assert built.status_code == 200, built.text
+    assert built.json()["execution"] == "job" and built.json()["job_run_uid"] == JOB_RUN_UID
+    assert listings == []
+
+
+def test_a_timed_out_start_without_a_run_is_unconfirmed_not_failed(client, monkeypatch) -> None:
+    created = client.post("/v1/takes", json={"title": "Robots", "thesis_text": THESIS}).json()
+    _fake_research(created["uid"])
+    monkeypatch.setenv("HUNCH_BUILD_EXECUTION", "job")
+    monkeypatch.setattr(builds, "JOB_START_LOOKUP_INTERVAL_SECONDS", 0)
+    job = _timed_out_build_job()
+    looks = []
+    with patch("mainsequence.client.Job") as job_model, patch("mainsequence.client.JobRun") as runs:
+        job_model.filter.return_value = [job]
+        runs.iter_filter.side_effect = lambda job__uid, timeout: looks.append(job__uid) or iter(())
+        built = client.post(f"/v1/takes/{created['uid']}/actions/build")
+    assert built.status_code == 504, built.text
+    assert built.json()["detail"]["code"] == "job_start_unconfirmed"
+    assert "may still start" in built.json()["detail"]["message"]
+    assert looks == [job.uid] * builds.JOB_START_LOOKUPS
+
+
+def test_a_refused_start_is_not_looked_for(monkeypatch) -> None:
+    job = SimpleNamespace(uid="j", name="Hunch Take Build")
+
+    def run_job(timeout, command_args):
+        raise ConflictError("The Job has no ready image.")
+
+    job.run_job = run_job
+    with patch("mainsequence.client.JobRun") as runs, pytest.raises(ConflictError):
+        builds.start_job_run(job, ["--take-uid", "t"])
+    runs.iter_filter.assert_not_called()
 
 
 def test_only_owners_build_and_others_read_published_portfolios(client, local_caller) -> None:
