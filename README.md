@@ -51,6 +51,38 @@ the hackathon. The Command Center site lives in the sibling `hunch` repository a
 same timeline: it was scaffolded on 24 October, its first version came on 25 October, and 4 of
 its 11 commits came during the hackathon.
 
+## For judges
+
+Hunch turns a person's investment thesis, written in plain language, into a researched,
+guard-railed portfolio of US-listed equities. It tracks the portfolio every trading day and trades
+it at the person's own broker only with their approval or inside limits they set. Meta's Muse
+models do all of its reasoning. This table maps each judging criterion to where the evidence is:
+
+| Criterion | Where to look |
+| --- | --- |
+| **Impact** | [What Hunch is](#what-hunch-is), [The idea](#the-idea) and the ontology in section 1 of the [plan](docs/planning/0001-hunch-product-and-build-proposal.md) |
+| **Use of Meta AI tooling** | Every model role in [the workflow file](.mainsequence/workflows/hunch-api.yaml) is a Muse model; the research prompt, schema and retry are in [`src/hunch/research/inference.py`](src/hunch/research/inference.py); [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) record the choices and the runs |
+| **Technical depth and execution** | [Architecture](#architecture), eight [ADRs](docs/adrs/), 186 tests under [`tests/`](tests/), the guardrails in [`construct_basket`](src/hunch/research/__init__.py) and the autopilot check in [`autopilot_check`](src/hunch/funding/services.py) |
+| **Demo** | The [demo film](#demo-film) |
+
+**Check it in five minutes.** The tests need no credentials and no platform access: the model,
+the broker and the market ledger are replaced by fakes, a deterministic researcher and a simulated
+venue.
+
+```bash
+git clone git@github.com:ms-private-projects/HunchAPI.git && cd HunchAPI
+uv sync
+uv run pytest -q    # 183 passed, 3 skipped (those need the local MetaTables runtime)
+```
+
+**What is real and what is illustrative.**
+- The code, the tests and the Muse configuration are what runs hosted on Main Sequence.
+- The film's screens are cards in the style of the Hunch site with illustrative data, and it says
+  so.
+- Hosted research, reviews and critiques run on Muse today. Hosted trading waits for the broker
+  connectors' execution release. Until then orders run end to end against the simulated venue
+  (see [Status](#status)).
+
 ## How Main Sequence supports the build
 
 Hunch is built and run on the Main Sequence platform. The platform supplies the infrastructure, so
