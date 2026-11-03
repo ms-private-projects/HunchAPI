@@ -29,8 +29,9 @@ decision. The strongest model belongs to the first; no model belongs to the seco
    `HunchTakeResearch` row (`hunch.takes.research`): the brief, the candidates with roles,
    cases, risks, conviction and citations, the rationale, the evidence consulted, the provider
    and model that answered and the recorded request UIDs. Research rows are numbered per take
-   (`number`, unique with `take_uid`); the recorded call is idempotent per research
-   (`hunch-take-<uid>-research-<n>`) and carries `research_number` in its metadata. A research
+   (`number`, unique with `take_uid`); every recorded call's key starts with
+   `hunch-take-<uid>-research-<n>`, ends with a random suffix (so a retry is a new request) and
+   the call carries `research_number` in its metadata. A research
    decides no weight.
 2. **Construction starts from a stored research.** `hunch.portfolios.build.build_take` takes a
    `research_uid` (the take's latest research by default), re-reads the research as a

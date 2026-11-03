@@ -299,8 +299,8 @@ def inference_research(
     """One recorded completion, retried once when the answer leaves required text empty; raises
     ``ResearchError`` when no usable answer comes back.
 
-    `number` is the research's ordinal for the take (ADR 0008): the recorded call is idempotent
-    per research, and the number is in its metadata. A provider's strict mode may not enforce the
+    `number` is the research's ordinal for the take (ADR 0008); every recorded call of the
+    research carries it in its key and metadata. A provider's strict mode may not enforce the
     schema's `minItems` and `minLength`, so the claims and every candidate's case are checked
     here; the retry says which fields were empty, and a second incomplete answer is refused.
     """

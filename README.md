@@ -9,15 +9,16 @@ Hunch is our entry to the
 which started on 26 October 2026 at 17:00 UTC. This repository started two days earlier, on
 24 October. Its history is untouched, so every date below can be checked with `git log`.
 
-**Before the hackathon (24–25 October).** On 24 October the Main Sequence platform created the
-repository from its project template (one commit, by `ms_pod`). On 25 October we built a first
-working version in 17 commits:
+**Before the hackathon (24 October to kickoff).** On 24 October the Main Sequence platform created
+the repository from its project template (one commit, by `ms_pod`). On 25 October we built a first
+working version in 17 commits, and one more commit on the morning of 26 October redeployed it to
+Production:
 - the Hunch tables, the API, the Agent and the workflow;
 - profiles and takes;
 - research, daily bars, the basket signal and practice portfolios;
 - linked accounts, funding, proposals, execution, daily reviews, the leaderboard and notifications;
 - performance metrics, research with citations and the email digest;
-- a first hosted deploy to the development Environment.
+- first hosted deploys to the development and Production Environments.
 
 Hosted research was then a heuristic that called no model, and the Agent was configured on a
 non-Meta model.
@@ -25,15 +26,15 @@ non-Meta model.
 **During the hackathon (26 October onwards).**
 - **Meta's Muse models do all the model work.** Take research runs on Muse Wonder 1.0. The Hunch
   Agent, the daily review and the thesis critique run on Muse Spark 1.3. Each role picks its own
-  model (ADR 0007), every call goes through the platform's recorded inference, and research
-  answers must fill a strict schema or are retried once ([how Hunch uses Muse](docs/muse.md)).
+  model (ADR 0007), every call goes through the platform's recorded inference to the Meta Model
+  API, and research answers must fill a strict schema or are retried once ([how Hunch uses Muse](docs/muse.md)).
 - **Research and construction are separate Jobs** (ADR 0008). Research holds the model credential;
   the build calls no model and decides the weights in code.
 - **Hunch moved to ms-markets 3.x** and now reaches the market ledger only through the Markets API
   (ADRs 0005 and 0006).
-- **Hosted runs are reliable on the platform.** Builds follow their Job runs, wait for sleeping
-  APIs, backfill daily bars in bounded runs and read in batches. The daily sweep starts one review
-  per active take. A take rebuilt in the same session now gets its new basket (ADR 0002).
+- **Hosted runs are reliable.** A build follows its Job run to the end, waits for services that
+  scale to zero to wake up, and fills price history in small batches. The daily sweep starts one
+  review per active take. A take rebuilt in the same session now gets its new basket (ADR 0002).
 - **The product plan was rewritten** around Hunch's own ontology.
 - **The demo film** in [`films/hunch-demo-video`](films/hunch-demo-video).
 - **The documentation for judges:** this guide, [how Hunch uses Muse](docs/muse.md),
@@ -51,8 +52,8 @@ Each line counts for the commit that last wrote it (`git blame -w -M -C`), so mo
 whitespace changes keep their original date. Lock files, generated data (including the stored
 model answer in `docs/examples`) and media are left out.
 By area, 18% of the application code, 42% of the tests and 58% of the docs were written during
-the hackathon. The Command Center site lives in the sibling `hunch` repository and follows the
-same timeline: it was scaffolded on 24 October, its first version came on 25 October, and 4 of
+the hackathon. The Command Center site lives in the [`Hunch` repository](https://github.com/ms-private-projects/Hunch/tree/command-center-site) and follows
+the same timeline: it was scaffolded on 24 October, its first version came on 25 October, and 4 of
 its 11 commits came during the hackathon.
 
 ## For judges
@@ -65,8 +66,8 @@ models do all of its reasoning. This table maps each judging criterion to where 
 | Criterion | Where to look |
 | --- | --- |
 | **Impact** | [What Hunch is](#what-hunch-is), [The idea](#the-idea) and the ontology in section 1 of the [plan](docs/planning/0001-hunch-product-and-build-proposal.md) |
-| **Use of Meta AI tooling** | [How Hunch uses Muse](docs/muse.md): the four places Muse runs, how each call is made and bounded, the research contract, and what we measured on Muse. The decisions are [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) |
-| **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 186 tests by area. Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
+| **Use of Meta AI tooling** | [How Hunch uses Muse](docs/muse.md): the four roles Muse plays (the Agent, research, review and critique), how each call is made and bounded, the research contract, and what we measured on Muse. The decisions are [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) |
+| **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 187 tests by area. Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
 | **Demo** | The [demo film](#demo-film), [screenshots of the running site](#the-running-site), and [a real Muse Wonder research](docs/examples/README.md) with the basket built from it |
 
 **Check it in five minutes.** The tests need no credentials and no platform access: the model,
@@ -76,7 +77,7 @@ venue.
 ```bash
 git clone https://github.com/ms-private-projects/HunchAPI.git && cd HunchAPI
 uv sync
-uv run pytest -q    # 183 passed, 3 skipped (those need the local MetaTables runtime)
+uv run pytest -q    # 184 passed, 3 skipped (those need the local MetaTables runtime)
 ```
 
 **What is real and what is illustrative.**
@@ -121,7 +122,7 @@ evidence, and proposes or makes only the changes the person has authorised.
 
 This repository is the Hunch backend on Main Sequence: the FastAPI application with its MCP
 server, the Hunch Agent (a TAU Harness Agent) and the Jobs that research, build, review and
-execute. The Command Center site lives in the sibling `hunch` repository.
+execute. The Command Center site lives in the [`Hunch` repository](https://github.com/ms-private-projects/Hunch/tree/command-center-site).
 
 ## Demo film
 
@@ -139,7 +140,7 @@ stay on the team's machines ([`films/hunch-demo-video`](films/hunch-demo-video))
 
 ### The running site
 
-These screenshots were captured on 3 November 2026 from the Hunch site (sibling `hunch` repository)
+These screenshots were captured on 3 November 2026 from the [Hunch site](https://github.com/ms-private-projects/Hunch/tree/command-center-site)
 on the local stack, with the simulated venue and synthetic daily prices:
 - The research tab shows research 1 of the take "AI power and grid buildout", answered by Muse
   Wonder 1.0.
@@ -231,8 +232,8 @@ The full ontology, with the record behind each concept, is section 1 of the
    thesis.
 2. **Research** it. Each research is kept and numbered, so the person can research again and
    compare.
-3. **Build** from a research, with no model call: guardrails (tradability, liquidity,
-   concentration, cash buffer) turn candidates into weights, Hunch publishes them as the take's
+3. **Build** from a research, with no model call: guardrails (tradability, exclusions, leveraged
+   products, position count, single-name cap, cash buffer) turn candidates into weights, Hunch publishes them as the take's
    signal and builds the Hunch portfolio.
 4. **Practice** it: the same reviews run and no orders are sent.
 5. **Fund** it from a linked account in approval or autopilot mode. The funding becomes a
@@ -388,7 +389,7 @@ records as a connector does).
 | `HUNCH_RESEARCH_MODE` | `heuristic` or `inference` (recorded model calls; needs `HUNCH_INFERENCE_ENVIRONMENT_UID`, ADR 0002) |
 | `HUNCH_RESEARCH_SOURCES` | Evidence sources, default `quant`; add `finnhub` with `HUNCH_FINNHUB_API_KEY` for news and fundamentals |
 | `HUNCH_INFERENCE_PROVIDER`, `_MODEL`, `_THINKING`, `_CREDENTIAL` | The recorded-inference selection every model role starts from (credential = a configured credential's `custom_id`) |
-| `HUNCH_MODEL_<ROLE>` | Per-role overrides for `RESEARCH`, `REVIEW` and `ANALYSIS`, as space-separated `key=value` pairs, for example `"provider=openrouter model=anthropic/claude-haiku-4.5 thinking=low"` (ADR 0007) |
+| `HUNCH_MODEL_<ROLE>` | Per-role overrides for `RESEARCH`, `REVIEW` and `ANALYSIS`, as space-separated `key=value` pairs, for example `"model=muse-wonder-1.0 thinking=medium"` (ADR 0007) |
 | `HUNCH_CONNECTOR_MODE` | `simulated` or `live`; live calls `HUNCH_ALPACA_CONNECTOR_URL` / `HUNCH_IBKR_CONNECTOR_URL` |
 | `HUNCH_REVIEW_DISPATCH` | `job` makes the scheduled review sweep start one review Job run per active take, three at a time |
 | `HUNCH_EMAIL_SENDER` | `outbox` (writes `.hunch-outbox/*.eml`), `platform` or `smtp`; `HUNCH_SITE_URL` sets the links |

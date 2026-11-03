@@ -1,6 +1,7 @@
 # How Hunch uses Muse
 
-Every model call in Hunch runs on Meta's Muse models. Muse runs in two places:
+Every model call in Hunch runs on Meta's Muse models, through the Meta Model API. Muse runs in two
+places:
 
 - **The Hunch Agent's conversation.** It talks with the person and acts through Hunch's MCP tools.
 - **Hunch's own model calls.** Research, the daily review and the thesis critique run as
@@ -39,10 +40,12 @@ sends one request to the platform's recorded inference with:
 - a JSON schema the answer must match;
 - the role's model, thinking level and credential (`custom_id: meta`);
 - metadata naming the operation, the role and the take;
-- an idempotency key built from the operation and the take (for research, also its number), so
-  each request can be traced back.
+- a request key naming the operation and the take (for research, also its number), with a random
+  suffix, so every call, a retry included, is its own recorded request and traces back to its take.
 
-The platform holds the Meta credential and records the request and the answer. Hunch holds no
+The platform holds the Meta Model API key (the `meta` credential), sends the request to the Meta
+Model API (`https://api.meta.ai/v1`, Chat Completions) and records the request and the answer.
+The Hunch Agent reaches Muse the same way, through the platform's `meta` provider. Hunch holds no
 provider client and no key. Each workload declares the credential it may use under
 `access.model_providers` in the workflow file:
 - the `hunch` API, for the critique;
@@ -109,7 +112,7 @@ requests.
 
 | Date | What happened |
 | --- | --- |
-| 1 Nov 2026 | The platform accepted Meta in recorded inference. The same day a build (JobRun `4c8c75e8`, request `2e564635`) and a critique (request `0d665f6c`) completed on Muse Spark 1.3, with Hunch's schemas unchanged. The Hunch Agent moved to Muse Spark 1.3. |
+| 1 Nov 2026 | The platform accepted Meta in recorded inference. The same day a build (JobRun `4c8c75e8`, request `2e564635`; builds still ran research until ADR 0008 split them later that day) and a critique (request `0d665f6c`) completed on Muse Spark 1.3, with Hunch's schemas unchanged. The Hunch Agent moved to Muse Spark 1.3. |
 | 2 Nov 2026 | Research moved to Muse Wonder 1.0. The first research on Spark 1.3 had returned 4,102 output tokens in 29 seconds; Wonder's first took 31 seconds. |
 | 2 Nov 2026 | A Wonder research on development came back schema-valid but empty (no cases, no claims). It also tagged two electric utilities as pure plays on a water thesis. The fix: tighter schema bounds, every field and role described in the prompt, the code check and the one retry. |
 | 2 Nov 2026 | A local Wonder run on the stricter schema filled five claims and all eleven cases on its first call, in 33.6 seconds. The role definitions were added after that run and are not yet verified on Wonder. |

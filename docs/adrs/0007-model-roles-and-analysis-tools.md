@@ -11,7 +11,7 @@ Hunch calls a model in two places. The Hunch Agent runs a conversation on the on
 and thinking level its Harness Agent declaration names in `.mainsequence/workflows/hunch-api.yaml`
 (`llm_provider`, `llm_model`, `llm_thinking`); Tau gives a session exactly one model and no
 per-tool override. Hunch's own code calls a model through the platform's recorded inference
-(`InferenceClient.complete`, ADR 0002): one bounded, schema-constrained, idempotent request whose
+(`InferenceClient.complete`, ADR 0002): one bounded, schema-constrained request whose
 provider, model, thinking level and credential are chosen per call, whose credentials the platform
 holds, and whose history the platform records. Until now every such call used one shared
 selection (`HUNCH_INFERENCE_PROVIDER`, `HUNCH_INFERENCE_MODEL`, `HUNCH_INFERENCE_THINKING`).

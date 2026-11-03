@@ -39,7 +39,8 @@ risks are in the JSON.
 | FSLR | `enabler` | 0.60 | First Solar is listed for solar and renewables and, on general knowledge, supplies utility-scale solar modules that can add generation where data-centre load is growing [E21]. It expresses the new-supply side of the power shortage rather than regulated grid ownership. | E21 |
 | BIL | `defensive` | 0.50 | BIL is the SPDR Bloomberg 1-3 Month T-Bill ETF in the universe, used here for the requested 10% cash buffer rather than for the power thesis [E10]. That cash-like role rests on general knowledge of short-term Treasury bills; the quant evidence only covers its trading history. | E10 |
 
-**The evidence it cited:**
+**The evidence it cited.** These facts come from the synthetic daily bars, which is why a
+T-bill fund shows a year of -12.3% at 26% volatility. Real bars would show neither.
 
 | Id | Ticker | Fact |
 | --- | --- | --- |
@@ -61,7 +62,8 @@ risks are in the JSON.
 - **It stayed inside the universe and the constraints.**
   - Every ticker is in Hunch's universe.
   - No leveraged or inverse product appears.
-  - The cash buffer is expressed by a defensive T-Bill fund (BIL).
+  - It added a T-bill fund (BIL) as a defensive holding for the cash buffer. The guardrails keep
+    the 10% buffer in cash regardless, so about 15% of the basket ends up cash-like.
 - **It said where evidence ran out.** The universe holds no listed pure play on transformers or
   switchgear, and the rationale says so. It also marks what rests on general knowledge rather than
   on the cited evidence.
@@ -71,8 +73,9 @@ risks are in the JSON.
 
 ## What the guardrails built from it
 
-The take was then built from this research, with no model call. The guardrails sized the
-candidates by conviction under the take's limits:
+The take was then built from this research, with no model call. The guardrails sized each
+candidate by its conviction times a factor for its role (pure play 1.0, supplier 0.8, enabler 0.6,
+defensive 0.5), under the take's limits:
 - capped NEE and VST at the 15% single-name limit;
 - kept 10% in cash;
 - reported `8 positions, 90.0% invested, 10.0% cash.`

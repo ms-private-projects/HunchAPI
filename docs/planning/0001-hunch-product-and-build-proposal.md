@@ -1,12 +1,14 @@
 # Hunch: product definition and build proposal
 
-- **Status:** Proposal for discussion (2026-10-25)
+- **Status:** Written on 2026-10-25 as the build proposal and rewritten on 2026-11-03 around what
+  Hunch is. What runs today is in the README's Status section.
+- **Models:** every model call runs on Meta's Muse models ([how Hunch uses Muse](../muse.md)).
 - **Scope:** What Hunch is and how it is built on Main Sequence. Backend as a Main Sequence
   FastAPI application in this repository (`hunchapi`), the agent as a TAU Harness Agent built with
   `ms-tau-sdk`, every market primitive on `ms-markets`, brokerage execution in Alpaca or
   Interactive Brokers through the existing connector repositories.
-- **Out of scope for this document:** the Command Center frontend (sibling `hunch` repository,
-  currently an empty Vite scaffold). It is referenced where the backend contract depends on it.
+- **Out of scope for this document:** the Command Center frontend (sibling `hunch` repository).
+  It is referenced where the backend contract depends on it.
 
 ---
 
@@ -42,7 +44,7 @@ Three commitments shape the product:
 | **Research** | A numbered study of the take against the target universe: a brief (claims, beneficiaries, losers, horizon) and candidates with a role, a case, risks, a conviction and the evidence they cite. Research proposes; it sets no weights (ADR 0008). | `HunchTakeResearch` |
 | **Evidence** | Facts the research cites by id: quantitative facts computed from daily bars, news and fundamentals. | in the research |
 | **Role** | Why a candidate belongs in the basket: `pure_play`, `supplier`, `enabler`, `hedge` or `defensive`. Roles size the basket before conviction and guardrails. | in the research and the basket |
-| **Basket** | The weights and cash buffer that construction derives from one research under guardrails (tradability, liquidity, concentration, cash). | `HunchTakeRevision` |
+| **Basket** | The weights and cash buffer that construction derives from one research under guardrails (tradability, concentration, cash). | `HunchTakeRevision` |
 | **Revision** | Every change of the basket, with its rationale and the research it came from: `initial`, `rebalance`, `user_edit` or `thesis_check`. | `HunchTakeRevision` |
 | **Instrument** | A venue-neutral security named by FIGI and resolved to each venue's own asset (3.5). | `HunchInstrument` |
 | **Hunch portfolio** | The model portfolio that holds the basket over time and produces the take's performance since activation; an ms-markets `Portfolio` extended one-to-one. | `HunchPortfolio` |
@@ -113,7 +115,7 @@ What Hunch produces from a thesis, and what a public take shows:
 | Brokerage linking | Register a paper or live account per venue, prove the user owns it, revoke it. |
 | Thesis capture | Store the take text, structured constraints (horizon, cash buffer, exclusions, risk appetite), and revisions. |
 | Research | Turn a thesis into candidates with roles, evidence and risks. |
-| Construction | Produce weights under deterministic guardrails (liquidity, concentration, tradability at the venue, cash buffer). |
+| Construction | Produce weights under deterministic guardrails (concentration, tradability at the venue, cash buffer). |
 | Model portfolio | Hold the weights as a time series, rebalance on a policy, compute NAV and returns from activation. |
 | Funding and execution | Map weights to target quantities for a funded amount, generate orders, transmit, track fills, reconcile holdings. |
 | Approval and Autopilot | Proposal objects with an explicit state machine; autopilot limits enforced server-side. |
@@ -254,7 +256,7 @@ existing read-only connector, then automated execution when OAuth is approved (6
    review are deterministic service code in Jobs that call recorded inference
    (`InferenceClient`); they are not agents.
 5. **Deterministic guardrails around the model.** The model proposes candidates, roles and
-   weights; code enforces tradability, liquidity, concentration, cash buffer and autopilot limits.
+   weights; code enforces tradability, concentration, cash buffer and autopilot limits.
 6. **One engine for practice and funded takes.** Practice is a `HunchPortfolio` without a
    virtual fund; funding adds a virtual fund, target positions and execution. The performance
    series is the same object.

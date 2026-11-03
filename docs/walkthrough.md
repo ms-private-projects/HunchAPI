@@ -75,14 +75,14 @@ sequenceDiagram
 
 ## Tests
 
-The suite holds 186 tests. 183 run with no credentials and no platform access; 3 need the local
+The suite holds 187 tests. 184 run with no credentials and no platform access; 3 need the local
 MetaTables runtime and skip without it (`HUNCH_LOCAL_RUNTIME_TESTS=1`).
 
 | Area | Tests |
 | --- | --- |
 | Market data and the Markets API boundary | 42 |
 | API, request identity, MCP and the Agent's tools | 40 |
-| Model calls: roles, research, critique, evidence | 37 |
+| Model calls: roles, research, critique, evidence | 38 |
 | Takes, construction and portfolios | 35 |
 | Reviews, community and email | 17 |
 | Funding, proposals and connectors | 13 |
