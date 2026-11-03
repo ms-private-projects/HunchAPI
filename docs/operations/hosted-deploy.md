@@ -10,9 +10,14 @@ needs, and the order that makes the pieces find each other. Nothing here holds a
 | development | `development` | `58218213-5e4e-43de-a5bd-6757f4e1c8f6` |
 | Production | `main` | `18595d12-f92a-4960-84cd-0c6798a1ad25` |
 
-The platform deploys from pushes to an Environment's branch. `phase-0-foundation` (backend) and
-`command-center-site` (site) are feature branches: pushing them deploys nothing. A deploy starts
-when they are merged (or fast-forwarded) into `development`, then `main`.
+Since 2026-11-03 the work lands on `main` and Production deploys only from release tags: every
+resource in `main`'s `hunch-api.yaml` carries `tag_regex: 'v\d+\.\d+\.\d+'`, so a push builds and
+deploys nothing until a tag such as `v0.2.0` points at a commit of `main` (a tag on an older commit
+deploys that commit, which is how to roll back). Keep the rule identical on every resource: the
+migration Job, the API and the Agent deploy as one group, and a member without a matching tag skips
+the group. `development` still deploys every push of its branch but is no longer used.
+`phase-0-foundation` (backend) and `command-center-site` (site) are feature branches: pushing them
+deploys nothing.
 
 Platform repository names: `HunchAPI` (this repository), `Hunch` (the site), `alpaca-connectors`,
 `InteractiveBrokersBackend`, `MetaTables`.
@@ -81,7 +86,8 @@ timeout); warming the runtime (`ResourceRelease.wait_for_runtime_access`) and re
 fixed that. Since 2026-10-28 every Hunch process waits up to 600 s for a waking MetaTables or
 Markets API (ADR 0006). The second run failed with `namespace_access_required` until the grants above existed.
 A failed migrate step blocks the API and Agent deploys (`workflow_prerequisite_failed`); after the
-fix, an empty commit on the branch re-runs the whole pipeline. The site build fails with
+fix, a new release tag on the fixed commit re-runs the whole pipeline (an untagged commit no longer
+deploys). The site build fails with
 `invalid_configuration` until the API release exists in the Environment and is rebuilt afterwards.
 
 ## Access to declare when the pieces exist

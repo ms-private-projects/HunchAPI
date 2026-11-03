@@ -1,5 +1,9 @@
 api_version: "3.0.0"
 name: hunch-api
+# Deploys come only from release tags: every resource below carries the same `tag_regex`, so a push
+# builds and deploys nothing until a tag such as `v0.2.0` points at a commit of the branch (a tag on
+# an older commit deploys that commit). Keep the rule identical on every resource: resources that
+# depend on each other deploy as one group, and one member without a matching tag skips the group.
 resources:
 # The key is also the Agent's MCP tool prefix (`hunch__list_tools`, `hunch__call_tool`), so it must
 # match ^[a-z][a-z0-9_]{0,39}$. The Hunch site names this release by this key.
@@ -47,7 +51,7 @@ resources:
     automatic_deployment: true
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
     revision_retention_count: 3
     mcp_enabled: true
     cors_allowed_origins:
@@ -144,7 +148,7 @@ resources:
     automatic_deployment: true
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
     revision_retention_count: 3
 - key: hunch-migrate
   kind: job
@@ -162,7 +166,7 @@ resources:
     spot: false
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
 # Research, builds, refreshes and reviews run as one shared Job per kind, selected by `--take-uid`
 # (the API, the Agent through the API, and the dispatchers start them). A Job cannot hold `runner`
 # on itself, so a dispatcher Job owns each schedule: the refresh dispatcher still refreshes in its
@@ -220,7 +224,7 @@ resources:
     scheduled_command_args: []
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
 - key: hunch-take-build
   kind: job
   access:
@@ -242,7 +246,7 @@ resources:
     scheduled_command_args: []
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
 - key: hunch-portfolio-refresh
   kind: job
   access:
@@ -263,7 +267,7 @@ resources:
     scheduled_command_args: []
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
 - key: hunch-portfolio-refresh-dispatcher
   kind: job
   access:
@@ -291,7 +295,7 @@ resources:
     scheduled_command_args: ['--scheduled']
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
 - key: hunch-daily-review
   kind: job
   access:
@@ -334,7 +338,7 @@ resources:
     scheduled_command_args: []
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
 - key: hunch-daily-review-dispatcher
   kind: job
   access:
@@ -371,7 +375,7 @@ resources:
     scheduled_command_args: ['--scheduled']
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
 - key: hunch-execution-sync
   kind: job
   access:
@@ -396,7 +400,7 @@ resources:
     scheduled_command_args: ['--scheduled']
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
 - key: hunch-leaderboard
   kind: job
   access:
@@ -421,7 +425,7 @@ resources:
     scheduled_command_args: []
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
 - key: hunch-email-digest
   kind: job
   access:
@@ -453,7 +457,7 @@ resources:
     scheduled_command_args: ['--scheduled']
     automatic_redeployment:
       enabled: true
-      tag_regex: null
+      tag_regex: 'v\d+\.\d+\.\d+'
 # The migration Job runs from the API's candidate image. The API deploys only after it succeeds,
 # and the Agent deploys from its own image only after the API whose MCP it uses.
 execution:

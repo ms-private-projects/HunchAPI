@@ -41,12 +41,12 @@ non-Meta model.
 
 | Measure | Before 26 Oct, 17:00 UTC | During the hackathon |
 | --- | --- | --- |
-| Commits on `main` | 19 (the template commit and 18 of ours) | 50 (72%) |
+| Commits on `main` | 19 (the template commit and 18 of ours) | 51 (73%) |
 | Lines of code, tests and docs | 74% | **26%** |
 
 Each line counts for the commit that last wrote it (`git blame -w -M -C`), so moved lines and
 whitespace changes keep their original date. Lock files, generated data and media are left out.
-By area, 18% of the application code, 42% of the tests and 49% of the docs were written during
+By area, 18% of the application code, 42% of the tests and 50% of the docs were written during
 the hackathon. The Command Center site lives in the sibling `hunch` repository and follows the
 same timeline: it was scaffolded on 24 October, its first version came on 25 October, and 4 of
 its 11 commits came during the hackathon.
@@ -380,7 +380,9 @@ API and Agent access ([docs/operations/hosted-deploy.md](docs/operations/hosted-
 
 `.mainsequence/workflows/hunch-api.yaml` declares the `hunch` FastAPI release (with `/mcp`), the
 one `hunch-agent` Harness Agent, the Jobs above and the `hunch-migrate` Job that gates the API
-rollout. The model of each role and of the Agent is set there.
+rollout. The model of each role and of the Agent is set there. Deploys come only from release
+tags: a push builds nothing until a tag matching `v<major>.<minor>.<patch>` points at a commit of
+`main`, which then deploys to Production.
 
 ## Status
 
