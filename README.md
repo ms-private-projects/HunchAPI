@@ -62,7 +62,7 @@ models do all of its reasoning. This table maps each judging criterion to where 
 | --- | --- |
 | **Impact** | [What Hunch is](#what-hunch-is), [The idea](#the-idea) and the ontology in section 1 of the [plan](docs/planning/0001-hunch-product-and-build-proposal.md) |
 | **Use of Meta AI tooling** | [How Hunch uses Muse](docs/muse.md): the four places Muse runs, how each call is made and bounded, the research contract, and what we measured on Muse. The decisions are [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) |
-| **Technical depth and execution** | [Architecture](#architecture), eight [ADRs](docs/adrs/), 186 tests under [`tests/`](tests/), the guardrails in [`construct_basket`](src/hunch/research/__init__.py) and the autopilot check in [`autopilot_check`](src/hunch/funding/services.py) |
+| **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 186 tests by area. Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
 | **Demo** | The [demo film](#demo-film) |
 
 **Check it in five minutes.** The tests need no credentials and no platform access: the model,
@@ -79,9 +79,9 @@ uv run pytest -q    # 183 passed, 3 skipped (those need the local MetaTables run
 - The code, the tests and the Muse configuration are what runs hosted on Main Sequence.
 - The film's screens are cards in the style of the Hunch site with illustrative data, and it says
   so.
-- Hosted research, reviews and critiques run on Muse today. Hosted trading waits for the broker
-  connectors' execution release. Until then orders run end to end against the simulated venue
-  (see [Status](#status)).
+- Hosted research, the thesis critique and the Hunch Agent run on Muse today. Hosted trading waits
+  for the broker connectors' execution release. Until then orders run end to end against the
+  simulated venue (see [Status](#status)).
 
 ## How Main Sequence supports the build
 
@@ -139,6 +139,28 @@ order traces back to it, so a person can see why they own what they own, whether
 holds, and how the idea has done since it went live. Ideas are also social: a take can be
 published, forked by others with its lineage intact, and ranked against other takes.
 
+**Who it's for.** It's for people with a view on where the world is going, like "AI needs power",
+"water gets scarce" or "the grid gets rebuilt". Today they either buy the one obvious stock or a
+broad fund, and they rarely write down why. A professional manager has analysts to research a
+theme, size a basket, watch it daily and explain every change. Hunch gives a single person that
+loop. Muse makes it affordable to research every take, check every thesis daily and answer every
+question.
+
+**Before and after.** Someone believes AI data centres will strain the power grid:
+- **Before**, they buy one utility stock, and a month later they can't say whether the reason still
+  holds.
+- **With Hunch**, they:
+  - write that sentence;
+  - sharpen it with the Hunch Agent into claims and the conditions that would change their mind;
+  - research it into candidates across power producers, grid equipment and cooling, with cited
+    evidence;
+  - build a basket under their own limits;
+  - practise it, then fund $2,000 in approval mode;
+  - approve the first trades.
+
+  Every trading day after that, the review says whether the thesis still holds, and the take's
+  record shows how the idea has done since it went live.
+
 Three commitments shape the product:
 
 - **The person instructs.** Hunch expresses the person's thesis and shows its evidence and
@@ -195,6 +217,9 @@ The full ontology, with the record behind each concept, is section 1 of the
    places the orders and Hunch reconciles the fills.
 6. **Review** it every trading day. Notifications and an optional email digest report each step.
 7. **Publish** it. Others fork it, and public takes rank on the leaderboard.
+
+[A take, end to end](docs/walkthrough.md) draws this as a sequence diagram and names the code at
+each step.
 
 ## Architecture
 
@@ -418,17 +443,32 @@ tags: a push builds nothing until a tag matching `v<major>.<minor>.<patch>` poin
 
 ## Status
 
-A thesis becomes a researched, built take with a basket, a model portfolio and a performance
-record; it can be practiced, published, forked and ranked; a linked account can fund it in
-approval or autopilot mode; proposals execute through the venue connector; the daily review
-watches drift and the thesis; and notifications and the email digest report every step. All of it
-runs locally end to end with the simulated venue. Hosted, research runs through recorded
-inference. Hosted execution waits for the connector releases' execution capability (plan §6.1);
-Interactive Brokers executes manually (ADR 0003); inbound email replies wait on a platform channel
-(ADR 0004).
+**Works today, hosted on Main Sequence (development):**
+- writing a take from the site;
+- research on Muse Wonder 1.0, and a build from it;
+- the thesis critique and the Hunch Agent on Muse Spark 1.3.
+
+**Works locally end to end with the simulated venue:**
+- practice;
+- funding in approval or autopilot mode;
+- proposals, execution and fill reconciliation, through the same connector port the live venues
+  use;
+- the daily review;
+- publish, fork and the leaderboard;
+- notifications and the email digest.
+
+Their Jobs are deployed hosted as well.
+
+**Next:**
+- Hosted trading waits for the broker connectors' execution release (plan §6.1).
+- Interactive Brokers executes manually (ADR 0003).
+- Inbound email replies wait on a platform channel (ADR 0004).
+- Hunch inside Muse as an agent is coming soon.
 
 ## Documentation
 
+- [docs/muse.md](docs/muse.md): how Hunch uses Muse, role by role, with the measured runs.
+- [docs/walkthrough.md](docs/walkthrough.md): a take end to end, its guardrails and the tests.
 - [docs/planning/0001-hunch-product-and-build-proposal.md](docs/planning/0001-hunch-product-and-build-proposal.md):
   what Hunch is, its ontology, the architecture and the delivery plan.
 - [docs/planning/0002-hunch-under-the-markets-api-boundary.md](docs/planning/0002-hunch-under-the-markets-api-boundary.md):
