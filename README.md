@@ -26,7 +26,7 @@ non-Meta model.
 - **Meta's Muse models do all the model work.** Take research runs on Muse Wonder 1.0. The Hunch
   Agent, the daily review and the thesis critique run on Muse Spark 1.3. Each role picks its own
   model (ADR 0007), every call goes through the platform's recorded inference, and research
-  answers must fill a strict schema or are retried once.
+  answers must fill a strict schema or are retried once ([how Hunch uses Muse](docs/muse.md)).
 - **Research and construction are separate Jobs** (ADR 0008). Research holds the model credential;
   the build calls no model and decides the weights in code.
 - **Hunch moved to ms-markets 3.x** and now reaches the market ledger only through the Markets API
@@ -61,7 +61,7 @@ models do all of its reasoning. This table maps each judging criterion to where 
 | Criterion | Where to look |
 | --- | --- |
 | **Impact** | [What Hunch is](#what-hunch-is), [The idea](#the-idea) and the ontology in section 1 of the [plan](docs/planning/0001-hunch-product-and-build-proposal.md) |
-| **Use of Meta AI tooling** | Every model role in [the workflow file](.mainsequence/workflows/hunch-api.yaml) is a Muse model; the research prompt, schema and retry are in [`src/hunch/research/inference.py`](src/hunch/research/inference.py); [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) record the choices and the runs |
+| **Use of Meta AI tooling** | [How Hunch uses Muse](docs/muse.md): the four places Muse runs, how each call is made and bounded, the research contract, and what we measured on Muse. The decisions are [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) |
 | **Technical depth and execution** | [Architecture](#architecture), eight [ADRs](docs/adrs/), 186 tests under [`tests/`](tests/), the guardrails in [`construct_basket`](src/hunch/research/__init__.py) and the autopilot check in [`autopilot_check`](src/hunch/funding/services.py) |
 | **Demo** | The [demo film](#demo-film) |
 
