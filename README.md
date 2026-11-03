@@ -36,17 +36,21 @@ non-Meta model.
   per active take. A take rebuilt in the same session now gets its new basket (ADR 0002).
 - **The product plan was rewritten** around Hunch's own ontology.
 - **The demo film** in [`films/hunch-demo-video`](films/hunch-demo-video).
+- **The documentation for judges:** this guide, [how Hunch uses Muse](docs/muse.md),
+  [a take end to end](docs/walkthrough.md), and a [real research](docs/examples/README.md) with
+  screenshots of the running site.
 
 **How much was done during the hackathon.** This is measured on the repository as it stands today:
 
 | Measure | Before 26 Oct, 17:00 UTC | During the hackathon |
 | --- | --- | --- |
-| Commits on `main` | 19 (the template commit and 18 of ours) | 51 (73%) |
-| Lines of code, tests and docs | 74% | **26%** |
+| Commits on `main` | 19 (the template commit and 18 of ours) | 57 (75%) |
+| Lines of code, tests and docs | 72% | **28%** |
 
 Each line counts for the commit that last wrote it (`git blame -w -M -C`), so moved lines and
-whitespace changes keep their original date. Lock files, generated data and media are left out.
-By area, 18% of the application code, 42% of the tests and 50% of the docs were written during
+whitespace changes keep their original date. Lock files, generated data (including the stored
+model answer in `docs/examples`) and media are left out.
+By area, 18% of the application code, 42% of the tests and 58% of the docs were written during
 the hackathon. The Command Center site lives in the sibling `hunch` repository and follows the
 same timeline: it was scaffolded on 24 October, its first version came on 25 October, and 4 of
 its 11 commits came during the hackathon.
