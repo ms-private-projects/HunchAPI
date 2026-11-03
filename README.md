@@ -63,7 +63,7 @@ models do all of its reasoning. This table maps each judging criterion to where 
 | **Impact** | [What Hunch is](#what-hunch-is), [The idea](#the-idea) and the ontology in section 1 of the [plan](docs/planning/0001-hunch-product-and-build-proposal.md) |
 | **Use of Meta AI tooling** | [How Hunch uses Muse](docs/muse.md): the four places Muse runs, how each call is made and bounded, the research contract, and what we measured on Muse. The decisions are [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) |
 | **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 186 tests by area. Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
-| **Demo** | The [demo film](#demo-film) |
+| **Demo** | The [demo film](#demo-film), [screenshots of the running site](#the-running-site), and [a real Muse Wonder research](docs/examples/README.md) with the basket built from it |
 
 **Check it in five minutes.** The tests need no credentials and no platform access: the model,
 the broker and the market ledger are replaced by fakes, a deterministic researcher and a simulated
@@ -78,7 +78,10 @@ uv run pytest -q    # 183 passed, 3 skipped (those need the local MetaTables run
 **What is real and what is illustrative.**
 - The code, the tests and the Muse configuration are what runs hosted on Main Sequence.
 - The film's screens are cards in the style of the Hunch site with illustrative data, and it says
-  so.
+  so. The screenshots and the research example are real output.
+- Daily prices are synthetic for now: a deterministic series per instrument, until a market-data
+  provider is connected. The prices, returns and price facts the model reads are therefore not
+  market data. The reasoning, the guardrails and the flow around them are real.
 - Hosted research, the thesis critique and the Hunch Agent run on Muse today. Hosted trading waits
   for the broker connectors' execution release. Until then orders run end to end against the
   simulated venue (see [Status](#status)).
@@ -129,6 +132,22 @@ with illustrative data, and practice returns are labelled simulated.
 The film was made as a [HyperFrames](https://hyperframes.heygen.com) project. To keep this
 repository light, only the published cut and its poster are committed; the project and its media
 stay on the team's machines ([`films/hunch-demo-video`](films/hunch-demo-video)).
+
+### The running site
+
+These screenshots were captured on 3 November 2026 from the Hunch site (sibling `hunch` repository)
+on the local stack, with the simulated venue and synthetic daily prices:
+- The research tab shows research 1 of the take "AI power and grid buildout", answered by Muse
+  Wonder 1.0.
+- The basket tab shows the weights the guardrails built from it.
+
+| Research by Muse Wonder 1.0 | The basket the guardrails built |
+| --- | --- |
+| ![Research tab](docs/screenshots/take-research.png) | ![Basket tab](docs/screenshots/take-basket.png) |
+
+The [overview](docs/screenshots/take-overview.png) and the
+[revision](docs/screenshots/take-revisions.png) are in `docs/screenshots/`.
+[docs/examples](docs/examples/README.md) has the full answer.
 
 ## The idea
 
@@ -463,6 +482,7 @@ Their Jobs are deployed hosted as well.
 - Hosted trading waits for the broker connectors' execution release (plan §6.1).
 - Interactive Brokers executes manually (ADR 0003).
 - Inbound email replies wait on a platform channel (ADR 0004).
+- Daily prices come from a market-data provider (Alpaca bars) instead of the synthetic series.
 - Hunch inside Muse as an agent is coming soon.
 
 ## Documentation

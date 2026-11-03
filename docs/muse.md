@@ -63,6 +63,11 @@ The [system prompt](../src/hunch/research/inference.py#L28) tells the model to:
 It defines each role precisely. `pure_play`, for example, means the thesis is the instrument's
 business, and the prompt describes every field of the answer.
 
+The evidence it cites is a numbered list:
+- price facts computed from Hunch's daily bars, which are synthetic today (a deterministic series
+  per instrument, until a market-data provider is connected);
+- news and fundamentals, when a Finnhub key is configured.
+
 The [response schema](../src/hunch/research/inference.py#L97) bounds the answer:
 
 | Field | Bound |
@@ -95,6 +100,9 @@ research keeps both request UIDs.
   deletes need the exact text `DELETE <uid>`. Long work starts a Job and returns its run UID.
 
 ## What we measured on Muse
+
+A full real answer, with the basket the guardrails built from it, is in
+[docs/examples](examples/README.md).
 
 These are dated, so they can be checked against ADRs 0007 and 0008 and the platform's recorded
 requests.

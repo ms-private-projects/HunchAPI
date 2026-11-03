@@ -10,6 +10,7 @@ rest.
 | --- | --- |
 | [How Hunch uses Muse](muse.md) | Where Meta's Muse models run (the Hunch Agent and the research, review and analysis roles), how each call is bounded and recorded, the research contract, and the dated runs on Muse |
 | [A take, end to end](walkthrough.md) | A sequence diagram of a take from a sentence to traded orders, the code behind every step, the guardrails and the tests by area |
+| [A real research on Muse Wonder 1.0](examples/README.md) | One stored research, its claims, candidates and cited evidence, the basket the guardrails built from it, and screenshots of both in the site |
 
 ## Plans
 
