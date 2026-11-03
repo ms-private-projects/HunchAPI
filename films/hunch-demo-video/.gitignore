@@ -1,0 +1,8 @@
+# Only the published cut, its poster and this folder's README are in the repository. The
+# HyperFrames project and its media (scenes, soundtrack, voice-over, tools, full-quality renders)
+# stay on the team's machines.
+*
+!.gitignore
+!README.md
+!hunch-demo.mp4
+!poster.jpg
