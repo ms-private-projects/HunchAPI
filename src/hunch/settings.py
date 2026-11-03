@@ -142,11 +142,11 @@ def connector_release_uid(venue: str) -> str | None:
 
 
 def inference_provider() -> str:
-    return os.environ.get("HUNCH_INFERENCE_PROVIDER", "openai-codex").strip() or "openai-codex"
+    return os.environ.get("HUNCH_INFERENCE_PROVIDER", "meta").strip() or "meta"
 
 
 def inference_model() -> str:
-    return os.environ.get("HUNCH_INFERENCE_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna"
+    return os.environ.get("HUNCH_INFERENCE_MODEL", "muse-spark-1.3").strip() or "muse-spark-1.3"
 
 
 def inference_credential() -> str | None:
@@ -163,7 +163,7 @@ def inference_credential() -> str | None:
 # conversation model is the Harness Agent declaration in the workflow file, not a role here.
 # Every role starts from the shared `HUNCH_INFERENCE_*` selection; `HUNCH_MODEL_<ROLE>` overrides
 # it with space-separated `key=value` pairs, for example
-# `HUNCH_MODEL_ANALYSIS="provider=openrouter model=anthropic/claude-sonnet-4.6 thinking=low"`.
+# `HUNCH_MODEL_RESEARCH="model=muse-wonder-1.0 thinking=medium"`.
 # Model identifiers may contain `/` and `:`; a key missing from the override keeps the shared value.
 MODEL_ROLE_RESEARCH = "research"  # a take build: thesis to candidates
 MODEL_ROLE_REVIEW = "review"  # the daily thesis check of an active take

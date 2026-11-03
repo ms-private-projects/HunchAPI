@@ -89,15 +89,15 @@ def _answer(**changes) -> dict:
 
 
 def test_inference_critique_runs_on_the_analysis_role_and_bounds_the_answer(monkeypatch) -> None:
-    monkeypatch.setenv("HUNCH_INFERENCE_PROVIDER", "openrouter")
-    monkeypatch.setenv("HUNCH_INFERENCE_MODEL", "openai/gpt-5.4")
-    monkeypatch.setenv("HUNCH_MODEL_ANALYSIS", "model=anthropic/claude-haiku-4.5")
+    monkeypatch.setenv("HUNCH_INFERENCE_PROVIDER", "meta")
+    monkeypatch.setenv("HUNCH_INFERENCE_MODEL", "muse-spark-1.3")
+    monkeypatch.setenv("HUNCH_MODEL_ANALYSIS", "model=muse-spark-1.2")
     client = FakeInference(_answer(summary="x" * 5000))
     critique = inference_critique(take(), client=client)
     (call,) = client.calls
     assert call["metadata"]["model_role"] == "analysis"
     assert call["metadata"]["operation"] == "hunch-thesis-critique"
-    assert call["model"] == "anthropic/claude-haiku-4.5"
+    assert call["model"] == "muse-spark-1.2"
     assert call["response_schema"]["required"][0] == "summary"
     assert "Chip supply" in call["messages"][1]["content"]
     assert "robotics" in call["messages"][1]["content"]
@@ -105,7 +105,7 @@ def test_inference_critique_runs_on_the_analysis_role_and_bounds_the_answer(monk
     assert critique.clarity == "partly_clear"
     assert [claim.strength for claim in critique.claims] == ["weak", "moderate"]
     assert len(critique.risks) == 8 and len(critique.summary) == 2000
-    assert critique.model == "anthropic/claude-haiku-4.5" and critique.provider == "openrouter"
+    assert critique.model == "muse-spark-1.2" and critique.provider == "meta"
     assert critique.inference_request_uids == ["req-1"]
 
 
