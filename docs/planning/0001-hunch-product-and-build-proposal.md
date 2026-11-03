@@ -1,83 +1,111 @@
-# Hunch: Supertake product analysis and build proposal
+# Hunch: product definition and build proposal
 
 - **Status:** Proposal for discussion (2026-10-25)
-- **Scope:** Replicate Supertake's functionality as "Hunch" on Main Sequence. Backend as a
-  Main Sequence FastAPI application in this repository (`hunchapi`), the agent as a TAU Harness
-  Agent built with `ms-tau-sdk`, every market primitive on `ms-markets`, brokerage execution in
-  Alpaca or Interactive Brokers through the existing connector repositories.
+- **Scope:** What Hunch is and how it is built on Main Sequence. Backend as a Main Sequence
+  FastAPI application in this repository (`hunchapi`), the agent as a TAU Harness Agent built with
+  `ms-tau-sdk`, every market primitive on `ms-markets`, brokerage execution in Alpaca or
+  Interactive Brokers through the existing connector repositories.
 - **Out of scope for this document:** the Command Center frontend (sibling `hunch` repository,
   currently an empty Vite scaffold). It is referenced where the backend contract depends on it.
 
 ---
 
-## 1. What Supertake is
+## 1. What Hunch is
 
-Sources: the USV announcement (2026-09-28), supertake.com, and launch coverage (see Appendix A).
+### 1.1 Objective
 
-### 1.1 Positioning
+Hunch turns a conviction about the world into a portfolio a person can hold, measure and stand
+behind. The person writes a thesis in plain language. Hunch researches it against a universe of
+US-listed equities, constructs a weighted basket under deterministic guardrails, runs the basket as
+a model portfolio with a performance record from its activation date and, once the person links a
+brokerage account and authorises it, funds and trades the basket in that account and reviews it
+every trading day. The thesis stays the unit of record: every weight, review, proposal and order
+traces back to it, and the person can practice it, publish it, let others fork it and compare it
+with other theses on a leaderboard.
 
-"AI that turns your ideas into investments." A user states a belief about the world in natural
-language. AI agents turn it into a diversified portfolio of US-listed equities, place the trades in
-the user's own brokerage account, manage it daily, and talk to the user about it. The product is
-non-custodial (assets stay at the user's broker), invite-only, free during beta, and explicitly not
-a registered investment adviser: the user is the one giving instructions, and displayed returns
-"may be simulated or unaudited".
+Three commitments shape the product:
 
-### 1.2 Vocabulary
+- **The person instructs.** Hunch expresses the person's thesis, shows its evidence and reasoning,
+  and is not an investment adviser. Returns shown without invested money are labelled simulated.
+- **Non-custodial.** Money and broker credentials stay at the brokerage and in its connector. Hunch
+  holds neither, and a linked account can be revoked at any time.
+- **Accountable by construction.** Approval is the default execution mode, autopilot acts only
+  within limits the person can see, every model call is recorded, and the model proposes while
+  code decides weights, limits and orders.
 
-| Term | Meaning in Supertake |
-| --- | --- |
-| **Take** | The user's thesis, stated in natural language ("humanoid robots are coming to every home"). It is the unit of identity, sharing and ranking. |
-| **Portfolio** | The basket the agents build from a take and hold in the user's brokerage. One take, one portfolio. |
-| **Agent(s)** | Research, construct, execute, monitor daily, rebalance on drift or new information, explain decisions, answer questions. |
-| **Autopilot / Approval** | Two execution modes. Approval: the user signs off on every trade. Autopilot: the agents trade automatically, within limits. |
-| **Practice Mode** | Builds the identical portfolio and runs the identical rebalancing logic, but sends no orders. Results are labelled simulated. |
-| **Fork** | Any user copies a published take and invests in it immediately. The fork is an independent portfolio under the forker's control; the rationale travels with it and the leaderboard credits the origin. |
-| **Leaderboard** | Public, continuously updated ranking of takes by return measured from each take's activation date. Practice takes are flagged as simulated. |
-| **Agentic account** | A sub-account at the broker (Robinhood, Coinbase) that the agents are authorized to read positions from and send orders to. Access is OAuth-style and revocable. |
+### 1.2 Ontology
 
-### 1.3 What a take contains
+| Concept | Meaning | Record |
+| --- | --- | --- |
+| **Take** | A thesis in natural language with its constraints. The unit of ownership, sharing and ranking; it has a lifecycle status (3.6), a visibility (`private`, `public`) and an execution mode. | `HunchTake` |
+| **Constraints** | What the person asks Hunch to respect: horizon, cash buffer, maximum single-name weight, maximum positions, exclusions, leveraged-ETF permission, risk level, and the "what would change my mind" conditions the daily review checks. | on the take |
+| **Research** | A numbered study of the take against the target universe: a brief (claims, beneficiaries, losers, horizon) and candidates with a role, a case, risks, a conviction and the evidence they cite. Research proposes; it sets no weights (ADR 0008). | `HunchTakeResearch` |
+| **Evidence** | Facts the research cites by id: quantitative facts computed from daily bars, news and fundamentals. | in the research |
+| **Role** | Why a candidate belongs in the basket: `pure_play`, `supplier`, `enabler`, `hedge` or `defensive`. Roles size the basket before conviction and guardrails. | in the research and the basket |
+| **Basket** | The weights and cash buffer that construction derives from one research under guardrails (tradability, liquidity, concentration, cash). | `HunchTakeRevision` |
+| **Revision** | Every change of the basket, with its rationale and the research it came from: `initial`, `rebalance`, `user_edit` or `thesis_check`. | `HunchTakeRevision` |
+| **Instrument** | A venue-neutral security named by FIGI and resolved to each venue's own asset (3.5). | `HunchInstrument` |
+| **Hunch portfolio** | The model portfolio that holds the basket over time and produces the take's performance since activation; an ms-markets `Portfolio` extended one-to-one. | `HunchPortfolio` |
+| **Profile** | The Hunch user, keyed by the Main Sequence user. | `HunchUserProfile` |
+| **Linked account** | A brokerage account at Alpaca or Interactive Brokers that a venue connector registered and the profile proved it owns. | `HunchUserProfileAccount` |
+| **Execution mode** | `practice` (the same construction and reviews, no orders), `approval` (the person signs off every proposal) or `autopilot` (proposals within the autopilot limits execute on their own). | on the take |
+| **Funding** | An amount of a linked account committed to one take. | `HunchFunding` |
+| **Rebalance proposal** | The only way money moves: the legs that reach the target, triggered by a funding, drift, the thesis, the person or a withdrawal, with the person's decision or the autopilot check and the execution state. | `HunchRebalanceProposal` |
+| **Daily review** | The trading-day check of a take: drift against the target and the thesis against new evidence, ending in `hold`, `flagged`, `proposed` or `executed`. | `HunchDailyReview` |
+| **Fork** | A copy of a public take under another person's control. It keeps the lineage to its origin and runs its own portfolio from its own activation. | on the take |
+| **Leaderboard** | Public takes ranked by return since activation, simulated periods labelled. | `HunchLeaderboardSnapshot` |
+| **Notification** | What Hunch tells the person about a take: builds, reviews, proposals, fills, links, forks. | `HunchNotification` |
+| **Hunch Agent** | The one conversational agent. It helps the person write, understand and act on takes through the Hunch API's tools and never calls a brokerage. | `.agents/agent_card.json` |
 
-The public leaderboard shows the artefact the agents produce from a thesis. Every entry has:
+### 1.3 Anatomy of a take
 
-- a title and author handle;
-- a written rationale (the thesis and why these holdings express it);
-- a basket described by roles, not only tickers: pure plays, "choke-point suppliers", "secondary
-  enablers", sometimes an inverse or leveraged ETF as a hedge;
-- weighting guidance: heavier and lighter sleeves, explicit avoidance of single-name
-  concentration;
-- a cash buffer (8 to 10 percent in the examples);
-- a holding horizon (quarters to five-plus years);
-- "what would change my mind" conditions, which the daily monitoring evaluates.
+What Hunch produces from a thesis, and what a public take shows:
 
-### 1.4 The user journey
+- a title, the author's handle and the thesis;
+- a written rationale: the thesis and why these holdings express it, citing the evidence;
+- a basket described by roles, not only tickers: pure plays, suppliers, enablers, and hedges or
+  defensive positions where the constraints allow them;
+- weights bounded by the constraints, with no single name above its cap;
+- a cash buffer (5 percent by default);
+- a holding horizon;
+- "what would change my mind" conditions, which the daily review evaluates;
+- the performance since activation, the daily reviews and the proposals that changed it.
 
-1. Join (waitlist, sign in with X). Optionally start in Practice Mode.
-2. Write a take.
-3. Agents research it (companies, competitive dynamics, market cap, liquidity, history) and build
-   a weighted basket with a cash buffer. The user sees rationale and weights.
-4. Link a brokerage (OAuth-style). Choose Approval or Autopilot. Fund the take with an amount.
-5. Agents place the orders.
-6. Daily: the agents re-read the thesis against new information, check drift, and either propose a
-   rebalance (Approval) or execute it (Autopilot). They send proactive status updates.
-7. The user talks to each portfolio in the app or by email (iMessage and SMS planned): ask for
-   explanations, request changes.
-8. The user publishes the take. Others fork it. Both appear on the leaderboard with returns since
-   activation.
+### 1.4 The journey
 
-### 1.5 Operating rules we must replicate
+1. Sign in through Main Sequence; Hunch creates the profile on first use.
+2. Write a take, alone or with the Hunch Agent, and set its constraints. Ask for a critique of the
+   thesis if useful.
+3. Research the take. Each research is kept, so the person can research again and compare.
+4. Build the basket from a research. Hunch publishes the weights, builds the Hunch portfolio and
+   starts its performance record.
+5. Practice it: the same reviews run, and no orders are sent.
+6. Link a brokerage account at Alpaca or Interactive Brokers, choose approval or autopilot, and
+   fund the take with an amount.
+7. Approve the initial proposal, or let autopilot submit it within its limits. The venue
+   connector places the orders and Hunch reconciles the fills.
+8. Every trading day Hunch reviews drift and the thesis and holds, flags, proposes or executes.
+   Notifications and an optional email digest report each step.
+9. Talk to the Hunch Agent about any take: explanations, changes, approvals.
+10. Publish the take. Others fork it, and public takes rank on the leaderboard by return since
+    activation.
 
-- One agent conversation per portfolio, with full context of that take.
+### 1.5 Operating rules
+
+- One agent, with one conversation per take that carries that take's context.
 - Non-custodial. Credentials and assets stay at the broker; access is revocable.
-- Approval is the default; Autopilot is bounded by limits that the user can see.
-- Practice and funded takes share one construction and rebalancing engine. Only order
-  transmission differs.
+- Approval is the default; autopilot is bounded by limits that the person can see and that
+  services enforce.
+- Research and construction are separate steps: the model proposes candidates, code sets weights.
+- Practice and funded takes share one construction and review engine. Only order transmission
+  differs.
 - Returns are measured from activation, include rebalancing, and are labelled simulated when no
   money was invested.
 - Forks keep attribution. Authors can edit or unpublish; forks become independent.
-- Assets today: public US equities. Planned: crypto, derivatives, prediction markets.
+- Assets: US-listed equities and ETFs. Other asset classes follow as the ms-markets connectors add
+  them.
 
-### 1.6 Capability inventory derived from the product
+### 1.6 Capability inventory
 
 | Capability | What it must do |
 | --- | --- |
@@ -517,11 +545,11 @@ effects, completion criteria and escalation, and is listed in `.agents/agent_car
 
 ### 4.4 Conversation model
 
-- The site opens one AgentSession per take (`handle_unique_id = take uid`), so "talk to each
-  portfolio" is literal and the history stays per take. A general session handles authoring.
+- The site opens one AgentSession per take (`handle_unique_id = take uid`), so each take has its
+  own conversation and its history stays with it. A general session handles authoring.
 - The first message of a take session carries the take UID; tools default to it.
 - Channels: Command Center chat now; email in phase 4 (inbound mail → Job → `send_a2a_message`
-  on the take's session; outbound through notifications); iMessage and SMS are not planned.
+  on the take's session; outbound through notifications).
 
 ### 4.5 Deployment declaration (sketch)
 
@@ -700,22 +728,17 @@ Phase 1 and the Alpaca execution capability (6.1) can run in parallel in differe
 6. **Alpaca connector policy change.** Its prompt, docs and tests currently assert "no trading".
    Adding execution to the API is a deliberate boundary change that needs an ADR and owners'
    agreement.
-7. **Regulatory posture.** Mirror Supertake: not an adviser, user instructs, Approval default,
-   Practice first, disclaimers in API responses. Legal review before public access.
+7. **Regulatory posture.** Hunch is not an adviser: the person instructs, Approval is the default,
+   Practice comes first, disclaimers ship in API responses. Legal review before public access.
 8. **Frontend.** The `hunch` scaffold must implement take authoring, chat per take, proposal
    approval and brokerage key entry (posting to the connector with the person's delegated
    identity). It is not covered by this document.
 
 ---
 
-## Appendix A: sources
+## Appendix A: repositories inspected
 
-- USV, "Introducing Supertake" (Michael Mignano, 2026-09-28):
-  https://www.usv.com/writing/introducing-supertake
-- Supertake landing page and leaderboard: https://supertake.com
-- Coverage: KuCoin blog "USV Partner Michael Mignano Launches Supertake" and Runtime Wire
-  "Supertake turns investing theses into portfolios, starting with Robinhood".
-- Repositories inspected (workbench `code-repositories/`): `mainsequencemarkets` (ms-markets
+- Workbench `code-repositories/`: `mainsequencemarkets` (ms-markets
   2.2.12), `alpaca-connectors` 0.1.41, `interactivebrokersbackend` 0.1.3 and its frontend
   `interactivebrokersam`, `binance-connectors`, `hunch` (frontend scaffold), and the CRM API
   project as a second TAU integration reference.

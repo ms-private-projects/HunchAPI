@@ -6,7 +6,7 @@ This repository is the Hunch backend for Main Sequence: takes (theses), Hunch po
 them, the Hunch users and their linked brokerage accounts, and later funding, proposals and
 execution. The installable `hunch` package (`src/`) backs the FastAPI application with its MCP
 server, the one Hunch Agent and the workflow Jobs. The plan is
-`docs/planning/0001-supertake-analysis-and-hunch-build-proposal.md`; decisions are ADRs under
+`docs/planning/0001-hunch-product-and-build-proposal.md`; decisions are ADRs under
 `docs/adrs/`.
 
 Repository rules:

@@ -6,7 +6,7 @@
 
 ## Context
 
-The plan in `docs/planning/0001-supertake-analysis-and-hunch-build-proposal.md` fixes five
+The plan in `docs/planning/0001-hunch-product-and-build-proposal.md` fixes five
 decisions: connectors are called deterministically by Hunch services, portfolios are
 `HunchPortfolio` rows extending ms-markets, `HunchUserProfile` is the Hunch user and not an
 ms-markets account, Hunch owns execution logic but delegates trades to the connected venue API, and
