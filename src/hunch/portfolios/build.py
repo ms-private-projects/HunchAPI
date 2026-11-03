@@ -24,6 +24,8 @@ from hunch.portfolios.graph import (
     ensure_trading_calendar,
     portfolio_latest_weights,
     portfolio_value_points,
+    restate_portfolio_from,
+    restate_signal_from,
 )
 from hunch.portfolios.services import hunch_portfolio_identifier
 from hunch.portfolios.signal import basket_signal, publish_basket_observation
@@ -105,12 +107,22 @@ def build_take(
 
     signal_time = last_completed_session_close(moment)
     signal = basket_signal(take.uid, universe)
+    identifier = hunch_portfolio_identifier(take.uid)
+    # An earlier build in this session, or a failed one, may already hold an observation and a
+    # rebalance at this close; both updaters keep only rows newer than their last, so this basket
+    # is stored, and reaches the portfolio, only once those rows are gone. Derived rows go first.
+    if take.activated_at is None:
+        # Nothing is scored before activation, so the portfolio is rebuilt at this close. An
+        # active take keeps its history: the new observation becomes the target at the next close,
+        # because restating this one would credit the basket with returns it did not earn.
+        restate_portfolio_from(identifier, signal_time)
+    restate_signal_from(signal.signal_uid, signal_time)
     publish_basket_observation(
         signal, weights, signal_time, description=f"Hunch take {take.uid}: {take.title}"
     )
 
     portfolio_row = Portfolio.upsert(
-        unique_identifier=hunch_portfolio_identifier(take.uid),
+        unique_identifier=identifier,
         calendar_uid=calendar.uid,
         signal_uid=signal.signal_uid,
     )

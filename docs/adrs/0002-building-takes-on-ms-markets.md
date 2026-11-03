@@ -75,6 +75,38 @@ SQLite runtime.
   populated progress map as a new portfolio (start from `OFFSET_START`) for the three nodes; this
   one matters on PostgreSQL too and should be reported upstream.
 
+## Rebuilding in the same session (2026-11-02)
+
+Every build publishes its basket at the last completed session close, so two builds before the
+next close publish at the same time. The second basket is dropped, not written over the first:
+the MetaTables updater keeps only rows newer than the last stored row for each signal and asset
+(`filter_df_by_latest_value`; its "Values will be overwritten" warning does not mean that a row at
+the same time is replaced). The rebalance updater likewise starts just after its last transition
+and the weights and values updaters at their last row, so the graph never recomputes that close
+either. The portfolio keeps the first basket while the newest revision names another. On
+development, take `3cfdd6d6` was built from research 2 after a failed build from research 1 had
+already published and run the graph at the same close: its revision held HD and no NEE or VST, and
+its Basket tab showed research 1's eight names. The local repro (build, exclude the two largest
+names, build again) kept all fifteen first-build names in the portfolio against a revision of
+four.
+
+- Every build deletes its signal's observations at and after its signal time before publishing
+  (`restate_signal_from`, MetaTables' `delete_after_date` scoped to the signal UID). MetaTables
+  recomputes the index statistics with the delete, so the publish is stored.
+- A build of a take that was never activated first deletes the portfolio's values, weights and
+  rebalance state from the same time (`restate_portfolio_from`, scoped to the portfolio
+  identifier), so the graph starts before that close and rebalances there on the new observation.
+  Derived rows go first, so a partial failure leaves no portfolio row newer than its signal. The
+  calendar events are left alone.
+- The portfolio is restated only before activation: performance is rebased at activation, so
+  nothing scored changes. An active take keeps its portfolio history. Its restated observation
+  becomes the target at the next session close, when the rebalance updater seeds its window with
+  the last observation; restating the portfolio at the past close would credit the new basket with
+  the session in which it was chosen. If an active take's publish fails after the delete, that
+  close has no observation until the take is built again.
+- Costs: one tail delete per build of an active take and four per build of an inactive one (two
+  MetaTables round trips each).
+
 ## Local inference finding
 
 Recorded inference is a platform service: the backend needs a recorded-inference adapter for the

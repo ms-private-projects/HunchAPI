@@ -4,6 +4,10 @@ On the first build in an Environment the bars table may hold nothing yet, so the
 are written before construction. The take's own names are part of that universe, so only a name
 that has left it is written again. Research (`hunch.research.runs`) writes them the same way
 before the quant evidence source reads them; `tests/test_take_research.py` covers that step.
+
+Every build restates the take's signal from its signal time, so a second build in the same session
+(or one after a failed build) stores its basket; before activation it restates the portfolio too,
+so that basket reaches the weights and values at that close. An active take keeps its history.
 """
 
 from __future__ import annotations
@@ -90,3 +94,84 @@ def test_build_writes_bars_again_only_for_names_outside_the_universe(
         build.build_take(take.uid, now=moment)
 
     assert bars == [["F1", "F2"], *written_again]
+
+
+class GraphRan(Exception):
+    """Raised by the fake portfolio graph so the build stops once the graph would run."""
+
+
+@pytest.mark.parametrize(
+    ("activated_at", "restated"),
+    [(None, True), (dt.datetime(2026, 10, 20, 21, tzinfo=dt.timezone.utc), False)],
+    ids=["never activated", "active"],
+)
+def test_a_build_restates_the_signal_and_before_activation_the_portfolio_from_its_signal_time(
+    monkeypatch, stored_research, activated_at, restated
+) -> None:
+    calls: list[tuple[object, ...]] = []
+    take = SimpleNamespace(
+        uid=uuid.uuid4(),
+        owner_user_uid="u",
+        status="built",
+        title="Grid-scale batteries",
+        activated_at=activated_at,
+    )
+    identifier = f"hunch-take-{take.uid}"
+    monkeypatch.setattr(build.Take, "get_by_uid", lambda uid: take)
+    monkeypatch.setattr(build, "ensure_universe", lambda: UNIVERSE)
+    monkeypatch.setattr(build, "take_revisions", lambda uid: [])
+    monkeypatch.setattr(build, "ensure_daily_bars", lambda figis=None, *, end=None: None)
+    proposal = SimpleNamespace(weights_by_figi=lambda: {"F1": 0.95}, rationale_md="Because.")
+    monkeypatch.setattr(build, "construct_basket", lambda *args, **kwargs: proposal)
+    monkeypatch.setattr(build, "ensure_trading_calendar", lambda: SimpleNamespace(uid="cal"))
+    monkeypatch.setattr(
+        build, "basket_signal", lambda uid, universe: SimpleNamespace(signal_uid="sig")
+    )
+    monkeypatch.setattr(
+        build,
+        "publish_basket_observation",
+        lambda signal, weights, time_index, description=None: calls.append(("publish", time_index)),
+    )
+    monkeypatch.setattr(
+        build,
+        "Portfolio",
+        SimpleNamespace(
+            upsert=lambda **kwargs: SimpleNamespace(
+                uid=uuid.uuid4(), unique_identifier=kwargs["unique_identifier"]
+            )
+        ),
+    )
+    monkeypatch.setattr(build, "HunchPortfolio", SimpleNamespace(upsert=lambda **kwargs: None))
+    monkeypatch.setattr(
+        build,
+        "restate_portfolio_from",
+        lambda portfolio, time_index: calls.append(("restate portfolio", portfolio, time_index)),
+    )
+    monkeypatch.setattr(
+        build,
+        "restate_signal_from",
+        lambda signal_uid, time_index: calls.append(("restate signal", signal_uid, time_index)),
+    )
+
+    class Graph:
+        def __init__(self, **kwargs) -> None:
+            calls.append(("graph", kwargs["offset_start"]))
+
+        def run(self):
+            raise GraphRan
+
+    monkeypatch.setattr(build, "PortfolioGraph", Graph)
+    monkeypatch.setattr(build, "hunch_portfolio_identifier", lambda uid: identifier)
+    moment = dt.datetime(2026, 10, 28, 15, 30, tzinfo=dt.timezone.utc)
+    with pytest.raises(GraphRan):
+        build.build_take(take.uid, now=moment)
+
+    (published,) = [call[1] for call in calls if call[0] == "publish"]
+    # The portfolio is derived from the signal, so its rows go first.
+    expected = [("restate portfolio", identifier, published)] if restated else []
+    expected += [
+        ("restate signal", "sig", published),
+        ("publish", published),
+        ("graph", published - dt.timedelta(days=1)),
+    ]
+    assert calls == expected

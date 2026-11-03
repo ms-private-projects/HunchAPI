@@ -138,6 +138,8 @@ def test_build_constructs_from_the_stored_research_and_links_the_revision(
         "HunchPortfolio",
         SimpleNamespace(upsert=lambda **kwargs: hunch_portfolios.append(kwargs) or kwargs),
     )
+    monkeypatch.setattr(build, "restate_portfolio_from", lambda identifier, time_index: None)
+    monkeypatch.setattr(build, "restate_signal_from", lambda signal_uid, time_index: None)
     monkeypatch.setattr(build, "PortfolioGraph", lambda **kwargs: SimpleNamespace(run=lambda: {}))
     monkeypatch.setattr(build, "portfolio_value_points", lambda identifier: [])
 

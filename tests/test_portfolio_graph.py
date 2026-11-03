@@ -64,3 +64,49 @@ def test_another_take_has_its_own_updaters() -> None:
     other = _hashes(uuid.UUID(int=2))
     for name in ("rebalance", "weights", "values"):
         assert other[name] != first[name]
+
+
+def test_a_restatement_deletes_one_portfolio_from_that_time_downstream_first(monkeypatch) -> None:
+    deleted = []
+
+    class Table:
+        def __init__(self, role: str) -> None:
+            self.role = role
+
+        def delete_after_date(self, after_date, *, dimension_filters=None):
+            deleted.append((self.role, after_date, dimension_filters))
+            return {"deleted_count": 1}
+
+    roles = ("values", "weights", "signal_weights", "rebalance_state", "calendar_events")
+    monkeypatch.setattr(graph, "portfolio_series", lambda: {role: role for role in roles})
+    monkeypatch.setattr(
+        graph, "_series_ref", lambda storage: SimpleNamespace(output_table=Table(storage))
+    )
+    close = dt.datetime(2026, 10, 30, 20, tzinfo=UTC)
+    graph.restate_portfolio_from("hunch-take-1", close)
+    # The signal and the calendar events are not the portfolio's; derived rows go first.
+    assert deleted == [
+        (role, close, {"portfolio_identifier": ["hunch-take-1"]})
+        for role in ("values", "weights", "rebalance_state")
+    ]
+
+
+def test_a_signal_restatement_deletes_one_signal_from_that_time(monkeypatch) -> None:
+    deleted = []
+
+    class Table:
+        def __init__(self, role: str) -> None:
+            self.role = role
+
+        def delete_after_date(self, after_date, *, dimension_filters=None):
+            deleted.append((self.role, after_date, dimension_filters))
+            return {"deleted_count": 15}
+
+    roles = ("values", "weights", "signal_weights", "rebalance_state", "calendar_events")
+    monkeypatch.setattr(graph, "portfolio_series", lambda: {role: role for role in roles})
+    monkeypatch.setattr(
+        graph, "_series_ref", lambda storage: SimpleNamespace(output_table=Table(storage))
+    )
+    close = dt.datetime(2026, 10, 30, 20, tzinfo=UTC)
+    graph.restate_signal_from("sig-1", close)
+    assert deleted == [("signal_weights", close, {"signal_uid": ["sig-1"]})]

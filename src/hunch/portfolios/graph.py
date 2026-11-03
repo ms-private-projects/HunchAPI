@@ -5,6 +5,11 @@ weights → portfolio values (NAV and returns), valued on Hunch's daily bars. Hu
 construction and every series it writes: each updater is bound to Hunch's instance of the
 ms-markets contract (`hunch.series`), and the take's Portfolio row, its calendar and its signal
 metadata are Markets registries reached through the Markets API (ADR 0006).
+
+Every updater here, the signal's included, keeps only rows newer than its last stored row. A basket
+published again at a time the signal already holds is stored only after `restate_signal_from` has
+removed the signal's rows from that time on, and it reaches a portfolio that already rebalanced
+there only after `restate_portfolio_from` has removed the portfolio's (ADR 0002).
 """
 
 from __future__ import annotations
@@ -203,6 +208,36 @@ class PortfolioGraph:
         return result
 
 
+def restate_portfolio_from(identifier: str, time_index: dt.datetime) -> None:
+    """Delete one portfolio's values, weights and rebalance state at or after `time_index`.
+
+    The rebalance updater starts just after its last transition and the weights and values
+    updaters at their last row, so a signal observation rewritten at a time the portfolio already
+    rebalanced at never reaches it. MetaTables recomputes a table's index statistics with the
+    delete, so the next run of the graph starts before `time_index` and rebalances there on the
+    latest observation. Downstream tables go first: a partial delete leaves no derived row newer
+    than the rows it was derived from. The calendar events and the signal are not the portfolio's.
+    """
+    series = portfolio_series()
+    for role in ("values", "weights", "rebalance_state"):
+        _series_ref(series[role]).output_table.delete_after_date(
+            time_index, dimension_filters={"portfolio_identifier": [identifier]}
+        )
+
+
+def restate_signal_from(signal_uid: str, time_index: dt.datetime) -> None:
+    """Delete one signal's observations at or after `time_index`.
+
+    The signal updater drops every row that is not newer than the signal's last stored row for
+    that asset, so an observation published again at the same time is never written over the
+    first: the stored basket stays. MetaTables recomputes the index statistics with the delete, so
+    the next publish at `time_index` is written.
+    """
+    _series_ref(portfolio_series()["signal_weights"]).output_table.delete_after_date(
+        time_index, dimension_filters={"signal_uid": [signal_uid]}
+    )
+
+
 def register_portfolio_datasets(portfolio_uid: uuid.UUID | str) -> Any:
     """Record the take's values, weights and signal instances in the Markets catalog.
 
@@ -317,4 +352,6 @@ __all__ = [
     "portfolio_latest_weights",
     "portfolio_unique_identifier",
     "portfolio_value_points",
+    "restate_portfolio_from",
+    "restate_signal_from",
 ]
