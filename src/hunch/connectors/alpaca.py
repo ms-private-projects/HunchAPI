@@ -231,6 +231,75 @@ class AlpacaConnector:
         self._assets = (time.time(), rows)
         return rows
 
+    # -- market data (ADR 0009) ------------------------------------------------------------------
+    # The connector stores Alpaca's daily bars per (frequency, feed, adjustment) dataset and serves
+    # them read-only: `GET /v1/market-data/datasets` and `.../{uid}/observations`, filtered by its
+    # asset identifiers and a time range, at most 1,000 rows a page (the offset a multiple of it).
+    # Hunch reads the daily SIP bars adjusted for splits and dividends, so a close-to-close change
+    # is the instrument's total return.
+    BARS_DATASET_KEY = "1d/sip/all"
+    BARS_PAGE_SIZE = 1_000
+    BARS_IDENTIFIERS_PER_REQUEST = 40
+    BARS_TIMEOUT_SECONDS = 180.0
+
+    def _daily_bars_dataset(self) -> dict[str, Any]:
+        cached = getattr(self, "_bars_dataset", None)
+        if cached is not None:
+            return cached
+        page = self.client.get("/v1/market-data/datasets", params={"limit": 100}) or {}
+        for item in page.get("items") or []:
+            if item.get("key") == self.BARS_DATASET_KEY:
+                self._bars_dataset: dict[str, Any] = item
+                return item
+        raise ConnectorCapabilityUnavailable(
+            f"The Alpaca connector stores no {self.BARS_DATASET_KEY} daily bars."
+        )
+
+    def daily_bars(
+        self, figis: list[str], start: dt.date, end: dt.date
+    ) -> dict[str, list[dict[str, Any]]]:
+        """The connector's stored daily bars between two dates, keyed by FIGI.
+
+        Every instrument the venue lists gets a key, with no rows when the connector stores none
+        in the range; an instrument the venue does not list gets no key. Rows are the connector's
+        observations as served (``time_index`` at the scheduled 16:00 New York close, UTC).
+        """
+        # The asset catalog is the connector's, not an account's: no account is needed here.
+        refs = self.resolve_assets("", list(figis))
+        bars: dict[str, list[dict[str, Any]]] = {figi: [] for figi in refs}
+        if not refs:
+            return bars
+        dataset = self._daily_bars_dataset()
+        by_identifier = {ref.asset_identifier: figi for figi, ref in refs.items()}
+        identifiers = sorted(by_identifier)
+        window = {
+            "start": dt.datetime.combine(start, dt.time.min, tzinfo=dt.timezone.utc).isoformat(),
+            "end": dt.datetime.combine(end, dt.time.max, tzinfo=dt.timezone.utc).isoformat(),
+        }
+        step = self.BARS_IDENTIFIERS_PER_REQUEST
+        for index in range(0, len(identifiers), step):
+            offset = 0
+            while True:
+                page = self.client.get(
+                    f"/v1/market-data/datasets/{dataset['uid']}/observations",
+                    params={
+                        "asset_identifier": identifiers[index : index + step],
+                        **window,
+                        "ordering": "time_index",
+                        "limit": self.BARS_PAGE_SIZE,
+                        "offset": offset,
+                    },
+                    timeout=self.BARS_TIMEOUT_SECONDS,
+                )
+                for row in (page or {}).get("items") or []:
+                    figi = by_identifier.get(str(row.get("asset_identifier")))
+                    if figi is not None:
+                        bars[figi].append(row)
+                if not (page or {}).get("pageInfo", {}).get("hasNextPage"):
+                    break
+                offset += self.BARS_PAGE_SIZE
+        return bars
+
     # -- execution (the contract Hunch targets; absent from the connector today) -------------
     def _require_execution(self) -> None:
         if self.execution_capability() != "automatic":

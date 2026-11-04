@@ -94,8 +94,9 @@ BUILD_EXECUTIONS: tuple[str, ...] = ("inline", "job")
 # process (local development); `job` starts one `Hunch Daily Review` Job run per take, in small
 # batches, so the reviews run on that Job's model credential and in parallel (hosted dispatcher).
 REVIEW_DISPATCHES: tuple[str, ...] = ("inline", "job")
-# Daily bar providers: `synthetic` for local development and tests; `alpaca` is a later phase.
-BARS_PROVIDERS: tuple[str, ...] = ("synthetic",)
+# Daily bar providers (ADR 0009): `synthetic` (the default) for tests and offline development;
+# `alpaca` reads the daily bars the Alpaca connector stores, through its REST API.
+BARS_PROVIDERS: tuple[str, ...] = ("synthetic", "alpaca")
 # Venue connectors: `live` calls the Alpaca and IBKR connector applications over HTTP;
 # `simulated` keeps a local venue inside this process that writes the same ms-markets rows.
 CONNECTOR_MODES: tuple[str, ...] = ("live", "simulated")

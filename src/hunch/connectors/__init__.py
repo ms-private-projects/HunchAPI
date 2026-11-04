@@ -33,22 +33,7 @@ def connector_for(venue: str) -> VenueConnector:
 
         connector: VenueConnector = SimulatedConnector(venue)
     else:
-        from hunch.connectors.http import ConnectorHTTPClient, ReleaseHTTPClient
-
-        release_uid = connector_release_uid(venue)
-        base_url = connector_url(venue)
-        if release_uid:
-            client: ConnectorHTTPClient = ReleaseHTTPClient(release_uid)
-        elif base_url:
-            client = ConnectorHTTPClient(base_url)
-        else:
-            raise ConnectorError(
-                f"No connector is configured for {venue}: set "
-                f"HUNCH_{venue.upper()}_CONNECTOR_RELEASE_UID (hosted) or "
-                f"HUNCH_{venue.upper()}_CONNECTOR_URL (local).",
-                code="dependency_unavailable",
-                retryable=False,
-            )
+        client = connector_http_client(venue)
         if venue == "alpaca":
             from hunch.connectors.alpaca import AlpacaConnector
 
@@ -59,6 +44,28 @@ def connector_for(venue: str) -> VenueConnector:
             connector = IBKRConnector(client)
     _REGISTRY[key] = connector
     return connector
+
+
+def connector_http_client(venue: str) -> Any:
+    """The HTTP client of a venue's connector application, whatever the connector mode.
+
+    Market data comes from the venue's connector even while orders are simulated (ADR 0009).
+    """
+    from hunch.connectors.http import ConnectorHTTPClient, ReleaseHTTPClient
+
+    release_uid = connector_release_uid(venue)
+    base_url = connector_url(venue)
+    if release_uid:
+        return ReleaseHTTPClient(release_uid)
+    if base_url:
+        return ConnectorHTTPClient(base_url)
+    raise ConnectorError(
+        f"No connector is configured for {venue}: set "
+        f"HUNCH_{venue.upper()}_CONNECTOR_RELEASE_UID (hosted) or "
+        f"HUNCH_{venue.upper()}_CONNECTOR_URL (local).",
+        code="dependency_unavailable",
+        retryable=False,
+    )
 
 
 def reset_connectors() -> None:
@@ -91,6 +98,7 @@ __all__ = [
     "VenueConnector",
     "VenueHolding",
     "connector_for",
+    "connector_http_client",
     "connector_status",
     "reset_connectors",
 ]

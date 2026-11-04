@@ -4,8 +4,10 @@ One asset-indexed updater, `HunchDailyBars`, writes daily OHLCV bars stamped at 
 of the XNYS calendar for the whole Hunch universe. Its identity is constant: the MetaTables
 updater hashes constructor arguments into the node identity, so the node takes none, reads its
 asset list from the instrument universe, and receives its options after construction. Where the
-bars come from is a provider port: the synthetic provider serves local development and tests with
-a deterministic series per instrument; a market-data provider (Alpaca bars) is a later phase.
+bars come from is a provider port (ADR 0009): the synthetic provider serves tests and offline
+development with a deterministic series per instrument; the Alpaca provider
+(`hunch.market_data.venue`) reads the daily bars the Alpaca connector stores. `restate_daily_bars`
+replaces stored history when an Environment moves from one provider to the other.
 """
 
 from __future__ import annotations
@@ -131,7 +133,8 @@ class SyntheticBarsProvider:
                         "volume": volumes,
                         "trade_count": (volumes / 150.0).round(),
                         "vwap": (opens + closes + highs + lows) / 4.0,
-                        "interpolated": False,
+                        # Not an observed bar: the contract's flag for synthetic prices.
+                        "interpolated": True,
                     }
                 )
             )
@@ -142,6 +145,10 @@ def bars_provider_instance(name: str | None = None) -> BarsProvider:
     selected = name or bars_provider()
     if selected == "synthetic":
         return SyntheticBarsProvider()
+    if selected == "alpaca":
+        from hunch.market_data.venue import AlpacaBarsProvider
+
+        return AlpacaBarsProvider()
     raise ValueError(f"Unknown bars provider {selected!r}.")
 
 
@@ -184,7 +191,9 @@ class HunchDailyBars(AssetIndexedUpdater):
         self._asset_identifiers: list[str] | None = None
         self._provider: BarsProvider | None = None
         self._end: dt.date | None = None
+        self._restate_after: dt.datetime | None = None
         self._rows_pending = 0
+        self.provenance: dict[str, Any] = {}
         from hunch.series import daily_bars_storage
 
         # Hunch's own instance of the ExternalPricesTS contract (ADR 0006); the output table does
@@ -199,12 +208,39 @@ class HunchDailyBars(AssetIndexedUpdater):
         asset_identifiers: Sequence[str] | None = None,
         provider: BarsProvider | None = None,
         end: dt.date | None = None,
+        restate_after: dt.datetime | None = None,
     ) -> HunchDailyBars:
+        """``restate_after`` rewrites the stored bars of these instruments after that moment.
+
+        The run then treats each instrument as stored up to ``restate_after``; its write replaces
+        the stored rows in the window it covers (a MetaTables write overwrites per instrument).
+        """
         if asset_identifiers is not None:
             self._asset_identifiers = sorted(dict.fromkeys(asset_identifiers))
         self._provider = provider or self._provider
         self._end = end or self._end
+        self._restate_after = restate_after or self._restate_after
         return self
+
+    def _set_update_statistics(self, update_statistics: Any) -> Any:
+        scoped = super()._set_update_statistics(update_statistics)
+        if self._restate_after is not None:
+            progress = dict(scoped.index_progress or {})
+            for figi in self.get_asset_list():
+                progress[figi] = self._restate_after
+            scoped.index_progress = progress
+        return scoped
+
+    def _fetch_start(self) -> dt.date:
+        """The first date an incremental provider is asked for: the earliest last stored bar."""
+        progress = getattr(self.update_statistics, "index_progress", None) or {}
+        moments = [
+            pd.Timestamp(progress[figi]) for figi in self.get_asset_list() if figi in progress
+        ]
+        if not moments:
+            return BARS_START
+        earliest = min(moment.tz_convert("UTC") if moment.tzinfo else moment for moment in moments)
+        return max(BARS_START, earliest.date())
 
     @property
     def rows_pending(self) -> int:
@@ -226,7 +262,10 @@ class HunchDailyBars(AssetIndexedUpdater):
     def update(self) -> pd.DataFrame:
         provider = self._provider or bars_provider_instance()
         end = self._end or dt.datetime.now(UTC).date()
-        frame = provider.daily_bars(self.get_asset_list(), BARS_START, end)
+        # The synthetic series is defined from BARS_START; a venue is asked only for what is new.
+        start = self._fetch_start() if getattr(provider, "incremental", False) else BARS_START
+        frame = provider.daily_bars(self.get_asset_list(), start, end)
+        self.provenance = {"source": provider.name, "rows": 0}
         if frame.empty:
             return frame
         normalized = _normalize_bars(frame)
@@ -235,7 +274,25 @@ class HunchDailyBars(AssetIndexedUpdater):
         normalized = normalized[normalized.index.get_level_values("time_index") <= now]
         new_rows = self.update_statistics.filter_df_by_latest_value(normalized)
         bounded, self._rows_pending = bound_to_sessions(new_rows)
+        self.provenance = bars_provenance(provider.name, bounded)
         return bounded
+
+
+def bars_provenance(source: str, frame: pd.DataFrame) -> dict[str, Any]:
+    """What one run wrote: its provider, rows, sessions, and which instruments are synthetic."""
+    if frame.empty:
+        return {"source": source, "rows": 0}
+    flat = frame.reset_index()
+    times = pd.to_datetime(flat["time_index"], utc=True)
+    synthetic = flat["interpolated"].astype(bool)
+    return {
+        "source": source,
+        "rows": len(flat),
+        "first": times.min().to_pydatetime(),
+        "last": times.max().to_pydatetime(),
+        "observed_instruments": sorted(set(flat.loc[~synthetic, "asset_identifier"].astype(str))),
+        "synthetic_instruments": sorted(set(flat.loc[synthetic, "asset_identifier"].astype(str))),
+    }
 
 
 def universe_figis() -> list[str]:
@@ -305,9 +362,91 @@ def ensure_daily_bars(
         error, _ = node.run(update_tree=False)
         if error:
             raise RuntimeError("Writing the daily bars failed.")
+        _log_provenance(node)
         if not node.rows_pending:
             return node
     raise RuntimeError("Writing the daily bars did not finish within the allowed runs.")
+
+
+def _log_provenance(node: Any) -> None:
+    provenance = getattr(node, "provenance", None) or {}
+    if provenance.get("rows"):
+        logger.info(
+            "Daily bars: %s rows from %s, %s to %s; synthetic instruments: %s.",
+            provenance["rows"],
+            provenance["source"],
+            provenance.get("first"),
+            provenance.get("last"),
+            len(provenance.get("synthetic_instruments") or []),
+        )
+
+
+def restate_daily_bars(
+    figis: Sequence[str],
+    *,
+    provider: BarsProvider | None = None,
+    since: dt.date = BARS_START,
+    end: dt.date | None = None,
+) -> dict[str, Any]:
+    """Replace the stored bars of these instruments from ``since`` with the provider's bars.
+
+    Moving an Environment from synthetic to venue bars must not splice real bars onto a synthetic
+    history, so the history is rewritten once. The provider is read once; an instrument is
+    rewritten only when the provider observed it (not a synthetic fallback) through its last
+    stored bar, so no stored bar is left after the rewritten ones; the others keep their bars and
+    are reported. The writes go in bounded runs of whole sessions, as ``ensure_daily_bars``'s do.
+    """
+    from hunch.market_data.venue import FrameBarsProvider
+
+    provider = provider or bars_provider_instance()
+    wanted = list(dict.fromkeys(figis))
+    end = end or dt.datetime.now(UTC).date()
+    frame = provider.daily_bars(wanted, since, end)
+    report: dict[str, Any] = {"source": provider.name, "restated": [], "kept": {}, "rows": 0}
+    if frame.empty:
+        report["kept"] = {figi: "no bars from the provider" for figi in wanted}
+        return report
+    normalized = _normalize_bars(frame.copy())
+    normalized = normalized[
+        normalized.index.get_level_values("time_index") <= pd.Timestamp.now(tz="UTC")
+    ]
+    flat = normalized.reset_index()
+    observed = flat[~flat["interpolated"].astype(bool)]
+    venue_last = observed.groupby("asset_identifier")["time_index"].max().to_dict()
+    stored = last_stored_bars(wanted)
+    restated: list[str] = []
+    for figi in wanted:
+        last = venue_last.get(figi)
+        if last is None:
+            report["kept"][figi] = "not observed by the provider"
+        elif figi in stored and pd.Timestamp(stored[figi]) > last:
+            report["kept"][figi] = (
+                f"provider ends {last.date().isoformat()}, stored bars end "
+                f"{pd.Timestamp(stored[figi]).date().isoformat()}"
+            )
+        else:
+            restated.append(figi)
+    if not restated:
+        return report
+    source = FrameBarsProvider(flat[flat["asset_identifier"].isin(restated)], name=provider.name)
+    after = dt.datetime.combine(since, dt.time.min, tzinfo=UTC) - dt.timedelta(microseconds=1)
+    first: dt.datetime | None = None
+    for _attempt in range(BARS_MAX_RUNS):
+        node = HunchDailyBars().configure(
+            asset_identifiers=restated, provider=source, end=end, restate_after=after
+        )
+        error, _ = node.run(update_tree=False)
+        if error:
+            raise RuntimeError("Restating the daily bars failed.")
+        _log_provenance(node)
+        written = node.provenance
+        report["rows"] += int(written.get("rows") or 0)
+        first = first or written.get("first")
+        if not node.rows_pending or not written.get("last"):
+            report.update(restated=restated, first=first, last=written.get("last"))
+            return report
+        after = written["last"]
+    raise RuntimeError("Restating the daily bars did not finish within the allowed runs.")
 
 
 def recent_bars(figis: Sequence[str], *, days: int = 400) -> pd.DataFrame:
@@ -366,6 +505,7 @@ __all__ = [
     "BarsProvider",
     "HunchDailyBars",
     "SyntheticBarsProvider",
+    "bars_provenance",
     "bars_provider_instance",
     "bound_to_sessions",
     "daily_bars_current",
@@ -375,6 +515,7 @@ __all__ = [
     "latest_closes",
     "quantitative_facts",
     "recent_bars",
+    "restate_daily_bars",
     "session_schedule",
     "universe_figis",
 ]
