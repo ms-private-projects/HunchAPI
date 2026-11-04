@@ -171,12 +171,15 @@ class ReleaseHTTPClient(ConnectorHTTPClient):
             try:
                 answer = self._resolver()
             except Exception as exc:
-                raise ConnectorError(
-                    f"The platform did not grant access to release {self.release_uid} "
-                    f"({type(exc).__name__}).",
-                    code="provider_unavailable",
-                    retryable=True,
-                ) from exc
+                if time.time() >= deadline:
+                    raise ConnectorError(
+                        f"The platform did not grant access to release {self.release_uid} "
+                        f"({type(exc).__name__}).",
+                        code="provider_unavailable",
+                        retryable=True,
+                    ) from exc
+                time.sleep(self.GRANT_RETRY_SECONDS)
+                continue
             grant = getattr(answer, "access", None) or {}
             if isinstance(grant, dict):
                 mode, token, rpc_url, expires = (

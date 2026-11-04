@@ -46,7 +46,10 @@ def _time(value: Any) -> dt.datetime | None:
 class AlpacaConnector:
     venue = VENUE_ALPACA
 
+    ASSET_PAGES_SECONDS = 600.0
+
     def __init__(self, client: ConnectorHTTPClient) -> None:
+        self._assets: tuple[float, list[dict[str, Any]]] | None = None
         self.client = client
         self._capabilities: dict[str, Any] | None = None
 
@@ -183,11 +186,8 @@ class AlpacaConnector:
         # the instrument identifies it (looked up once, when a row without a FIGI turns up).
         by_ticker: dict[str, str] | None = None
         resolved: dict[str, VenueAssetRef] = {}
-        offset, limit = 0, 100
-        while wanted and True:
-            page = self.client.get("/v1/assets", params={"limit": limit, "offset": offset})
-            items = page.get("items") or []
-            for item in items:
+        for item in self._asset_rows():
+            if wanted:
                 figi = item.get("figi") or item.get("composite_figi")
                 if not figi:
                     if by_ticker is None:
@@ -207,10 +207,29 @@ class AlpacaConnector:
                         asset_uid=str(item.get("uid") or "") or None,
                     )
                     wanted.discard(figi)
+        return resolved
+
+    def _asset_rows(self) -> list[dict[str, Any]]:
+        """The connector's registered assets, paged once and kept for a while.
+
+        A hosted connector answers a page in tens of seconds and its universe changes rarely, so
+        one funding (which resolves assets twice) and the proposals after it share the pages.
+        """
+        import time
+
+        cached = self._assets
+        if cached is not None and time.time() - cached[0] < self.ASSET_PAGES_SECONDS:
+            return cached[1]
+        rows: list[dict[str, Any]] = []
+        offset, limit = 0, 100
+        while True:
+            page = self.client.get("/v1/assets", params={"limit": limit, "offset": offset})
+            rows.extend(page.get("items") or [])
             if not page.get("pageInfo", {}).get("hasNextPage"):
                 break
             offset += limit
-        return resolved
+        self._assets = (time.time(), rows)
+        return rows
 
     # -- execution (the contract Hunch targets; absent from the connector today) -------------
     def _require_execution(self) -> None:
