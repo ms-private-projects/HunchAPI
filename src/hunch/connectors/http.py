@@ -129,6 +129,7 @@ class ReleaseHTTPClient(ConnectorHTTPClient):
 
     GRANT_REFRESH_MARGIN_SECONDS = 60.0
     WAKE_WAIT_SECONDS = 120.0
+    GRANT_RETRY_SECONDS = 3.0
 
     def __init__(
         self,
@@ -163,38 +164,45 @@ class ReleaseHTTPClient(ConnectorHTTPClient):
             _, _, expires_at = self._grant
             if expires_at is None or expires_at - time.time() > self.GRANT_REFRESH_MARGIN_SECONDS:
                 return self._grant
-        try:
-            answer = self._resolver()
-        except Exception as exc:
-            raise ConnectorError(
-                f"The platform did not grant access to release {self.release_uid} "
-                f"({type(exc).__name__}).",
-                code="provider_unavailable",
-                retryable=True,
-            ) from exc
-        grant = getattr(answer, "access", None) or {}
-        if isinstance(grant, dict):
-            mode, token, rpc_url, expires = (
-                grant.get("mode"),
-                grant.get("token"),
-                grant.get("rpc_url"),
-                grant.get("expires_at"),
-            )
-        else:
-            mode, token, rpc_url, expires = (
-                getattr(grant, "mode", None),
-                getattr(grant, "token", None),
-                getattr(grant, "rpc_url", None),
-                getattr(grant, "expires_at", None),
-            )
-        if hasattr(token, "get_secret_value"):
-            token = token.get_secret_value()
-        if mode != "token" or not token or not rpc_url:
-            raise ConnectorError(
-                f"Release {self.release_uid} offers no token access to call it.",
-                code="dependency_unavailable",
-                retryable=False,
-            )
+        # The platform answers without a grant while it re-checks a runtime that scales to
+        # zero, even one that is serving; ask again until the wake window closes.
+        deadline = time.time() + self.WAKE_WAIT_SECONDS
+        while True:
+            try:
+                answer = self._resolver()
+            except Exception as exc:
+                raise ConnectorError(
+                    f"The platform did not grant access to release {self.release_uid} "
+                    f"({type(exc).__name__}).",
+                    code="provider_unavailable",
+                    retryable=True,
+                ) from exc
+            grant = getattr(answer, "access", None) or {}
+            if isinstance(grant, dict):
+                mode, token, rpc_url, expires = (
+                    grant.get("mode"),
+                    grant.get("token"),
+                    grant.get("rpc_url"),
+                    grant.get("expires_at"),
+                )
+            else:
+                mode, token, rpc_url, expires = (
+                    getattr(grant, "mode", None),
+                    getattr(grant, "token", None),
+                    getattr(grant, "rpc_url", None),
+                    getattr(grant, "expires_at", None),
+                )
+            if hasattr(token, "get_secret_value"):
+                token = token.get_secret_value()
+            if mode == "token" and token and rpc_url:
+                break
+            if time.time() >= deadline:
+                raise ConnectorError(
+                    f"Release {self.release_uid} offers no token access to call it.",
+                    code="dependency_unavailable",
+                    retryable=True,
+                )
+            time.sleep(self.GRANT_RETRY_SECONDS)
         expires_at = None
         if expires is not None:
             expires_at = expires.timestamp() if hasattr(expires, "timestamp") else float(expires)

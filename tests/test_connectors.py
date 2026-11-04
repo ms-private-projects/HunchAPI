@@ -379,7 +379,10 @@ def test_release_client_calls_the_rpc_url_with_the_granted_token_and_renews_once
     assert session.calls[2][2] == "Bearer t2"  # renewed once after the 401
 
 
-def test_release_client_reports_missing_grants_as_unavailable() -> None:
+def test_release_client_reports_missing_grants_as_unavailable(monkeypatch) -> None:
+    from hunch.connectors.http import ReleaseHTTPClient as Client
+
+    monkeypatch.setattr(Client, "WAKE_WAIT_SECONDS", 0.0)  # no wake window to wait for here
     from types import SimpleNamespace
 
     from hunch.connectors.http import ReleaseHTTPClient
