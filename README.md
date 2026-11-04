@@ -25,6 +25,26 @@ its MCP server, the Hunch Agent (a TAU Harness Agent) and the Jobs that research
 execute. The Command Center site lives in the
 [`Hunch` repository](https://github.com/ms-private-projects/Hunch/tree/command-center-site).
 
+## Why it matters
+
+Three reasons, in the order a person feels them.
+
+- **Sovereignty.** Someone who holds a view about the world should be able to own exactly the
+  companies that express it, not a basket assembled by someone else under index rules, exclusion
+  lists or stewardship policies they never chose. Hunch keeps the thesis in the person's words and
+  the limits in their hands: the model proposes, code sizes, and only their approval or their own
+  autopilot limits move money, at their own broker.
+- **Speed.** A belief becomes a researched, evidence-cited, risk-capped portfolio in minutes, not
+  after a fund launches a product for it, and it is re-checked every trading day against the
+  person's own "change my mind" conditions.
+- **Cost.** Thematic ETFs commonly charge 0.40% to 0.75% a year. Compounded over 40 years, 0.40%
+  removes about 15% of final wealth and 0.75% about 26%, before tracking and turnover costs.
+  Hunch's marginal cost is a few model calls per take per day, at a commission-free broker.
+
+Because Hunch runs on Main Sequence, every operation is already an MCP tool behind an agent card:
+a person or a team can connect their own agents to it, extend the Hunch Agent, or build their own
+agent mesh around their portfolios instead of waiting for a vendor to ship the feature.
+
 ## Before and during the hackathon
 
 Hunch is our entry to the
