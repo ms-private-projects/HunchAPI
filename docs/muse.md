@@ -120,26 +120,30 @@ requests.
 | 2 Nov 2026 | A local Wonder run on the stricter schema filled five claims and all eleven cases on its first call, in 33.6 seconds. The role definitions were added after that run. |
 | 3 Nov 2026 | A local Wonder research with the role definitions in its prompt filled seven claims and eight cases on its first call: 30.2 seconds from request to answer in the platform's record (request `3ac2815c`, [exported](examples/muse-wonder-recorded-request.json)). |
 | 4 Nov 2026 | For the film's take on the local stack: the critique answered in 27.7 seconds, research 1 in 42.3 seconds (request `126463af`; 6 claims, 8 candidates) and the daily review in 17.5 seconds ("hold"). |
+| 4 Nov 2026 | The 2 Nov water thesis (take `3cfdd6d6`'s title, thesis and constraints), run again on the local stack with the role definitions: request `63879db7`, 49.0 seconds in the platform's record, seven claims and six cases on the first call. The mis-tag is gone: no candidate is a `pure_play`, and the rationale says the universe holds no water utility and that an electric utility is not a pure play on water. |
 
-Per role, counting only the calls documented above:
+Per role, from the platform's recorded requests in Hunch's development and Production Environments
+(listed through `GET /api/v1/inference/conversations/` at 13:12 UTC on 4 Nov, plus the 17:08 water
+re-run). Latency is the platform's time from request to answer:
 
-| Role (model) | Calls | Complete on the first call | Retried | Latency |
+| Role (model) | Calls | Complete on the first call | Retried | Median latency (range) |
 | --- | --- | --- | --- | --- |
-| `research` (Wonder 1.0) | 5 | 2 confirmed (2 and 3 Nov); 1 schema-valid but empty (2 Nov, before the code check and the retry existed); 2 not recorded here | 0 | 30.2 s (the platform's record), 31, 33.6 and 42.3 s |
-| `analysis`, the critique (Spark 1.3) | 2 | 2; a critique is one call with no retry | n/a | 27.7 s (4 Nov) |
-| `review` (Spark 1.3) | 1 | 1; a review is one call with no retry | n/a | 17.5 s (4 Nov) |
+| `research` (Wonder 1.0) | 7 | 5; the 2 incomplete answers came on 2 Nov, before the code check and the retry existed | 0 | 32.4 s (26.7 to 49.0) |
+| `research` (Spark 1.3, until 2 Nov) | 2 | 2 | n/a | 19.1 and 28.4 s |
+| `analysis`, the critique (Spark 1.3) | 5 | 5; a critique is one call with no retry | n/a | 22.5 s (13.3 to 27.9) |
+| `review` (Spark 1.3) | 5 | 5; a review is one call with no retry | n/a | 18.9 s (13.5 to 26.6) |
 | Hunch Agent (Spark 1.3) | not measured | | | |
 
-Every documented research answered inside the platform's 60-second transport limit. Research on
-Spark 1.3 before the move to Wonder is in the first two rows of the dated table.
+Every research answered inside the platform's 60-second transport limit.
 
-**Not yet verified on Wonder.** The 3 Nov research ran with the role definitions: its recorded
-system prompt is the code's prompt today, and the check script confirms it. Three things are still
-open:
-- No water thesis has been run again, so the definitions are not yet shown to fix the 2 Nov
-  mis-tag.
-- The retry has not fired in a documented Wonder run.
-- Five research calls are a log, not a sample. The repository has no failure rate across many runs.
+**What is verified, and what is not.**
+- **Role definitions:** verified on two theses. The 3 Nov research ran with them (the check script
+  confirms its recorded prompt is the code's), and the water re-run no longer calls an electric
+  utility a pure play.
+- **The retry:** it has not fired in a recorded run. No recorded research request carries
+  `attempt: 2`, and all four since the retry existed were complete on the first call. Only the
+  tests in [`test_research_inference.py`](../tests/test_research_inference.py) exercise it.
+- **Scale:** seven Wonder research calls are a log, not a sample, so there is no failure rate yet.
 
 The platform's limits shaped the design:
 - **Thinking level:** one request gets 60 seconds of transport, which is why research stays at
