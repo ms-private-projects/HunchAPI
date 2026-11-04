@@ -55,8 +55,9 @@ non-Meta model.
   scale to zero to wake up, and fills price history in small batches. The daily sweep starts one
   review per active take. A take rebuilt in the same session now gets its new basket (ADR 0002).
 - **The product plan was rewritten** around Hunch's own ontology.
-- **The demo film** was written, voiced and rendered
-  ([`films/hunch-demo-video`](films/hunch-demo-video)).
+- **Two films** were written, voiced and rendered: the marketing cut
+  ([`films/hunch-demo-video`](films/hunch-demo-video)) and the hackathon cut with real screens of
+  Muse at work ([`films/hunch-hackathon-video`](films/hunch-hackathon-video)).
 - **The documentation for judges:** this guide, [how Hunch uses Muse](docs/muse.md),
   [a take end to end](docs/walkthrough.md), and a [real research](docs/examples/README.md) with
   screenshots of the running site.
@@ -103,8 +104,10 @@ uv run pytest -q    # 184 passed, 3 skipped (those need the local MetaTables run
 
 **What is real and what is illustrative.**
 - The code, the tests and the Muse configuration are what runs hosted on Main Sequence.
-- The film's screens are cards in the style of the Hunch site with illustrative data, and it says
-  so. The screenshots and the research example are real output.
+- In the hackathon film, the critique, research and basket scenes are captures of the Hunch site
+  on the local stack; the other scenes, and the whole marketing film, are cards in the style of the
+  site with illustrative data, and both films say so. The screenshots and the research example are
+  real output.
 - Daily prices are synthetic for now: a deterministic series per instrument, until a market-data
   provider is connected. The prices, returns and price facts the model reads are therefore not
   market data. The reasoning, the guardrails and the flow around them are real.
@@ -134,17 +137,25 @@ this repository holds only Hunch's own product logic:
 
 ## Demo film
 
-[![Hunch demo film](films/hunch-demo-video/poster.jpg)](films/hunch-demo-video/hunch-demo.mp4)
+[![Hunch hackathon film](films/hunch-hackathon-video/poster.jpg)](https://youtu.be/5JdsPBNQIsU)
 
-[Watch the three-minute film](films/hunch-demo-video/hunch-demo.mp4). It follows a person from a hunch to
-a portfolio: writing a take, pressure-testing it with the Hunch Agent, research, the build under
-their rules, practice, funding at Alpaca or Interactive Brokers, the daily review and sharing. It
-ends on Hunch inside Muse, which is coming soon. The screens are cards in the style of the Hunch site
-with illustrative data, and practice returns are labelled simulated.
+**The hackathon cut (2:59).** [Watch it on YouTube](https://youtu.be/5JdsPBNQIsU) or
+[in the repository](films/hunch-hackathon-video/hunch-hackathon.mp4). It follows a person from a
+hunch to a portfolio, and its middle is real screens of the Hunch site on the local stack: the
+thesis critique arriving from Muse Spark 1.3, research 1 by Muse Wonder 1.0 with its roles and cited
+evidence, and the basket the guardrails built from it, followed by a chapter on how Hunch uses Muse
+(the four jobs, the Meta Model API, the schema, the recorded request and the test that pins every
+deployed model call to Muse). The funding, daily-review and sharing scenes are styled cards with
+illustrative data, and Hunch inside the Muse app is labelled coming soon
+([`films/hunch-hackathon-video`](films/hunch-hackathon-video)).
 
-The film was made as a [HyperFrames](https://hyperframes.heygen.com) project. To keep this
-repository light, only the published cut and its poster are committed; the project and its media
-stay on the team's machines ([`films/hunch-demo-video`](films/hunch-demo-video)).
+**The marketing cut (3:00).** [On YouTube](https://youtu.be/wKARzkQHrqU) or
+[in the repository](films/hunch-demo-video/hunch-demo.mp4): the same journey told with cards in the
+style of the Hunch site and illustrative data ([`films/hunch-demo-video`](films/hunch-demo-video)).
+
+Both films were made as [HyperFrames](https://hyperframes.heygen.com) projects. To keep this
+repository light, only the published cuts and their posters are committed; the projects, captures
+and media stay on the team's machines.
 
 ### The running site
 

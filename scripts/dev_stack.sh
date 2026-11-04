@@ -24,6 +24,13 @@ set -euo pipefail
 
 MODE="${1:-all}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# .env first, so HUNCH_RESEARCH_MODE and the other HUNCH_* settings below can come from it.
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
 SITE_DIR="${HUNCH_SITE_DIR:-$ROOT/../hunch-52848869-59a2-4291-bb0b-33b01760a400}"
 API_PORT="${HUNCH_LOCAL_API_PORT:-8601}"
 TAU_PORT="${HUNCH_LOCAL_TAU_PORT:-8602}"
@@ -47,12 +54,6 @@ case "$MODE" in
 esac
 
 cd "$ROOT"
-if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
-fi
 export MAINSEQUENCE_AUTH_MODE=jwt
 unset APP_NAME FASTAPI_PUBLIC_BASE_URL MAINSEQUENCE_CALLER_AUTH_MODE
 

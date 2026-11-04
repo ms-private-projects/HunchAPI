@@ -1,0 +1,7 @@
+# Only the published cut, its poster and this folder's README are in the repository. The
+# HyperFrames project and its media stay on the team's machines.
+*
+!.gitignore
+!README.md
+!hunch-hackathon.mp4
+!poster.jpg

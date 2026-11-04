@@ -45,4 +45,6 @@ rest.
   Agent.
 - [`.mainsequence/workflows/hunch-api.yaml`](../.mainsequence/workflows/hunch-api.yaml): every
   release, Job, schedule, model and grant the platform deploys.
-- [`films/hunch-demo-video/`](../films/hunch-demo-video/): the demo film.
+- [`films/hunch-hackathon-video/`](../films/hunch-hackathon-video/): the hackathon film, with real
+  screens of Muse at work; [`films/hunch-demo-video/`](../films/hunch-demo-video/): the marketing
+  film.
