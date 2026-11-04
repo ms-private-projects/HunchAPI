@@ -4,7 +4,7 @@ Run from the repository root: `uv run scripts/hackathon_share.py`. A commit coun
 time. Each line of a tracked text file counts for the author time of the commit that last wrote it
 (`git blame -w -M -C`), so whitespace-only edits and moved or copied lines keep their original
 time. The licence text, the lock file, the requirements exported from it, the instrument universe,
-the stored model answer and binary files are left out.
+the stored model answer with its recorded request, and binary files are left out.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ EXCLUDED = {
     "requirements.txt",
     "src/hunch/instruments/universe.json",
     "docs/examples/muse-wonder-research.json",
+    "docs/examples/muse-wonder-recorded-request.json",
 }
 
 

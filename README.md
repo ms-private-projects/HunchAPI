@@ -5,11 +5,14 @@
 Hunch takes an idea about the world, written in plain language ("AI data centres will strain the
 power grid"), and turns it into a researched, guard-railed portfolio of US-listed equities. The
 thesis is the unit of record: every position cites its evidence, and every weight, review, proposal
-and order traces back to the idea. Every trading day Hunch checks whether the thesis still holds,
-and it trades at the person's own broker only with their approval or inside limits they set. Meta's
-Muse models do all of its reasoning: Muse Wonder 1.0 researches each thesis, and Muse Spark 1.3
-runs the Hunch Agent, the daily thesis check and the critique. Code decides the weights, the limits
-and the orders.
+and order traces back to the idea. Every trading day Hunch checks whether the thesis still holds.
+Meta's Muse models do all of its reasoning: Muse Wonder 1.0 researches each thesis, and Muse Spark
+1.3 runs the Hunch Agent, the daily thesis check and the critique.
+
+Hunch gives no investment advice: the person writes the thesis and its limits, Muse proposes
+candidates, code sizes them under those limits, and money moves only at the person's own broker,
+on their approval or inside autopilot limits they set; live trading stays off until the broker
+connector's execution release is in place and the account's broker keys are stored on it.
 
 - Watch the [three-minute film](https://youtu.be/8z7mYjCD558): real screens of Muse at work in
   Hunch ([also in the repository](films/hunch-hackathon-video/hunch-hackathon.mp4)).
@@ -73,7 +76,7 @@ non-Meta model.
 Each line counts for the commit that last wrote it (`git blame -w -M -C`), so moved lines and
 whitespace changes keep their original date. Left out: the licence text, `uv.lock`, the
 `requirements.txt` exported from it, the instrument universe (`src/hunch/instruments/universe.json`), the stored model answer
-in `docs/examples` and binary files such as the film and the screenshots. By area, 20% of the
+and its recorded request in `docs/examples`, and binary files such as the film and the screenshots. By area, 20% of the
 application code, 43% of the tests and 60% of the docs were written during the hackathon.
 `uv run scripts/hackathon_share.py` recomputes every number here.
 
@@ -92,6 +95,7 @@ This table maps each judging criterion to where the evidence is:
 | **Use of Meta AI tooling** | [How Hunch uses Muse](docs/muse.md): the four roles Muse plays (the Agent, research, review and critique), how each call is made and bounded, the research contract, and what we measured on Muse. The decisions are [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) |
 | **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 189 tests by area (186 run with no credentials, 3 skip without the local MetaTables runtime). Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
 | **Demo** | The [demo film](#demo-film), [screenshots of the running site](#the-running-site), and [a real Muse Wonder research](docs/examples/README.md) with the basket built from it |
+| **The advice boundary** | Hunch gives no investment advice. The person writes the thesis and the limits, Muse proposes candidates and code sizes them, money moves only on the person's approval or inside autopilot limits they set, and the leaderboard ranks published takes by their own record since activation ([the commitments](#the-idea), [Disclaimer](#disclaimer)) |
 
 **Check it in five minutes.** The tests need no credentials and no platform access: the model,
 the broker and the market ledger are replaced by fakes, a deterministic researcher and a simulated
@@ -101,6 +105,7 @@ venue.
 git clone https://github.com/ms-private-projects/HunchAPI.git && cd HunchAPI
 uv sync
 uv run pytest -q    # 186 passed, 3 skipped (those need the local MetaTables runtime)
+uv run scripts/check_example_research.py    # the stored Muse research and its recorded request, checked against the code
 ```
 
 **What is real and what is simulated, today.**
@@ -115,13 +120,19 @@ uv run pytest -q    # 186 passed, 3 skipped (those need the local MetaTables run
 | Broker credentials | Never in Hunch: the Alpaca and Interactive Brokers connectors hold them | [Architecture](#architecture) |
 | The films | Hackathon cut: the critique, research, basket, funding, daily-review and leaderboard scenes are captures of the site on the local stack (fills on the simulated venue); its opening, take form and Muse-app scenes, and the whole marketing cut, are styled cards with illustrative data, and both say so | [Demo film](#demo-film) |
 
-The code, the tests and the Muse configuration are what runs hosted on Main Sequence; the screenshots
-and the research example are real output.
+**What runs hosted, and what blocks live trading.**
+
+| | Today |
+| --- | --- |
+| Runs hosted | The API with its MCP server, the Hunch Agent and the Jobs, on a Production Environment on Main Sequence. The hosted Alpaca connector links the paper account and receives Hunch's proposals |
+| Blocks real fills | The account's broker keys, stored on the connector; Hunch never holds them |
+| Blocks real prices | A market-data provider (Alpaca bars), being connected today |
+| Hosted runs on record | On development: build JobRun `4c8c75e8` with request `2e564635` and critique request `0d665f6c` (1 Nov, [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md)); builds `e08fe607` and `650866bb` ([ADR 0006](docs/adrs/0006-hunch-behind-the-markets-api.md)) and research `a037d2e2` ([ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md)) on 2 Nov |
 
 **Muse at work, in thirty seconds.** One candidate from the [stored research](docs/examples/muse-wonder-research.json)
 Muse Wonder 1.0 returned for the take "AI power and grid buildout" (recorded request
-`3ac2815c-247a-4aeb-bde5-e1d8e6174ba7`, 7 claims, 8 candidates, 65 evidence items), and the evidence
-it cites:
+`3ac2815c-247a-4aeb-bde5-e1d8e6174ba7`, [exported in full](docs/examples/muse-wonder-recorded-request.json);
+7 claims, 8 candidates, 65 evidence items), and the evidence it cites:
 
 ```json
 {"ticker": "VST", "role": "pure_play", "conviction": 0.95, "citations": ["E63"],

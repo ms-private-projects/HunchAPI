@@ -104,8 +104,9 @@ research keeps both request UIDs.
 
 ## What we measured on Muse
 
-A full real answer, with the basket the guardrails built from it, is in
-[docs/examples](examples/README.md).
+A full real answer, with the basket the guardrails built from it and the platform's record of the
+request, is in [docs/examples](examples/README.md); `uv run scripts/check_example_research.py`
+checks it against the code with no credentials.
 
 These are dated, so they can be checked against ADRs 0007 and 0008 and the platform's recorded
 requests.
@@ -115,7 +116,29 @@ requests.
 | 1 Nov 2026 | The platform accepted Meta in recorded inference. The same day a build (JobRun `4c8c75e8`, request `2e564635`; builds still ran research until ADR 0008 split them later that day) and a critique (request `0d665f6c`) completed on Muse Spark 1.3, with Hunch's schemas unchanged. The Hunch Agent moved to Muse Spark 1.3. |
 | 2 Nov 2026 | Research moved to Muse Wonder 1.0. The first research on Spark 1.3 had returned 4,102 output tokens in 29 seconds; Wonder's first took 31 seconds. |
 | 2 Nov 2026 | A Wonder research on development came back schema-valid but empty (no cases, no claims). It also tagged two electric utilities as pure plays on a water thesis. The fix: tighter schema bounds, every field and role described in the prompt, the code check and the one retry. |
-| 2 Nov 2026 | A local Wonder run on the stricter schema filled five claims and all eleven cases on its first call, in 33.6 seconds. The role definitions were added after that run and are not yet verified on Wonder. |
+| 2 Nov 2026 | A local Wonder run on the stricter schema filled five claims and all eleven cases on its first call, in 33.6 seconds. The role definitions were added after that run. |
+| 3 Nov 2026 | A local Wonder research with the role definitions in its prompt filled seven claims and eight cases on its first call: 30.2 seconds from request to answer in the platform's record (request `3ac2815c`, [exported](examples/muse-wonder-recorded-request.json)). |
+| 4 Nov 2026 | For the film's take on the local stack: the critique answered in 27.7 seconds, research 1 in 42.3 seconds (request `126463af`; 6 claims, 8 candidates) and the daily review in 17.5 seconds ("hold"). |
+
+Per role, counting only the calls documented above:
+
+| Role (model) | Calls | Complete on the first call | Retried | Latency |
+| --- | --- | --- | --- | --- |
+| `research` (Wonder 1.0) | 5 | 2 confirmed (2 and 3 Nov); 1 schema-valid but empty (2 Nov, before the code check and the retry existed); 2 not recorded here | 0 | 30.2 s (the platform's record), 31, 33.6 and 42.3 s |
+| `analysis`, the critique (Spark 1.3) | 2 | 2; a critique is one call with no retry | n/a | 27.7 s (4 Nov) |
+| `review` (Spark 1.3) | 1 | 1; a review is one call with no retry | n/a | 17.5 s (4 Nov) |
+| Hunch Agent (Spark 1.3) | not measured | | | |
+
+Every documented research answered inside the platform's 60-second transport limit. Research on
+Spark 1.3 before the move to Wonder is in the first two rows of the dated table.
+
+**Not yet verified on Wonder.** The 3 Nov research ran with the role definitions: its recorded
+system prompt is the code's prompt today, and the check script confirms it. Three things are still
+open:
+- No water thesis has been run again, so the definitions are not yet shown to fix the 2 Nov
+  mis-tag.
+- The retry has not fired in a documented Wonder run.
+- Five research calls are a log, not a sample. The repository has no failure rate across many runs.
 
 The platform's limits shaped the design:
 - **Thinking level:** one request gets 60 seconds of transport, which is why research stays at

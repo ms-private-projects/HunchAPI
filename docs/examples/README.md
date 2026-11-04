@@ -10,8 +10,28 @@ Nothing in it is illustrative: the model, the request and the answer are real.
 | Constraints | 12-month horizon, at most 10 positions, at most 15% in one name, 10% cash, no leveraged products, medium risk |
 | Model | `meta` / `muse-wonder-1.0`, thinking `medium`, the `research` role |
 | How | One recorded-inference request (`3ac2815c-247a-4aeb-bde5-e1d8e6174ba7`) through the development Environment's Meta credential, run by [`run_take_research`](../../src/hunch/research/runs.py#L81) against the local stack |
-| When | 2026-11-03 11:27:25 UTC; the answer took about 32 seconds and needed no retry |
+| When | 2026-11-03 11:27:25 UTC; the platform recorded 30.2 seconds from request to answer, and it needed no retry |
 | Evidence offered | 65 price facts computed from the stored daily bars (`quant`). Those bars are synthetic today (a deterministic series per instrument), so the price facts are not market data; no news source was configured |
+
+## The recorded request, and a check anyone can run
+
+[`muse-wonder-recorded-request.json`](muse-wonder-recorded-request.json) is the platform's own
+record of request `3ac2815c-247a-4aeb-bde5-e1d8e6174ba7`, exported on 4 November 2026 through
+`GET /api/v1/inference/requests/<uid>/`. It holds the system and user prompts, the JSON schema, the
+model, the thinking level, the metadata, the answer, the token usage (5,135 in, 2,790 out) and the
+timestamps. Only the UID of the credential is redacted. The platform records the thinking level
+but no reasoning trace, so there is none to export.
+
+```bash
+uv run scripts/check_example_research.py    # 15 checks, no credentials: "All checks passed."
+```
+
+The [script](../../scripts/check_example_research.py) uses Hunch's own code, not copies of it. It
+checks that:
+- the answer matches the research schema;
+- every ticker is in the universe and every cited evidence id is in the stored evidence;
+- the recorded prompts and schema are exactly what the code builds today;
+- the recorded answer is the stored one.
 
 ## What came back
 
