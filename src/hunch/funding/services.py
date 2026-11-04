@@ -398,10 +398,12 @@ def fund_take(
         raise TakeStateError("The take has no basket yet; build it first.")
     venue_assets = connector.resolve_assets(venue_account_uid(link), list(target))
     missing = sorted(set(target) - set(venue_assets))
-    if missing:
+    if len(missing) == len(target):
         raise FundingError(
-            f"The venue cannot trade {len(missing)} basket instruments: {', '.join(missing)}"
+            f"The venue cannot trade any of the {len(target)} basket instruments: "
+            f"{', '.join(missing)}"
         )
+    # An instrument the venue cannot trade keeps its weight in cash; the proposal says so.
 
     now = utc_now()
     fund = ensure_virtual_fund(
@@ -435,6 +437,7 @@ def fund_take(
             "account_uid": str(link.account_uid),
             "account_identifier": account.unique_identifier,
             "execution_capability": connector.execution_capability(),
+            "untradable_at_venue": missing,
             **target_refs,
         },
     )

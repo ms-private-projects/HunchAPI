@@ -462,3 +462,43 @@ def test_alpaca_links_unowned_accounts_as_unverified_and_queues_orders_after_clo
     assert result.accepted and result.batch_id == "HUNCH_BATCH__x"
     body = next(c[2] for c in http.calls if c[1] == "/v1/accounts/a9/orders/actions/submit")
     assert body["queue_when_closed"] is True and body["orders"][0]["symbol"] == "VST"
+
+
+def test_alpaca_resolves_assets_by_ticker_when_the_connector_has_no_figi(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "hunch.instruments.services.instruments_for_figis",
+        lambda figis: {"BBG00DXDL6Q1": SimpleNamespace(figi="BBG00DXDL6Q1", ticker="VST")},
+    )
+    http = CannedHTTP(
+        {
+            ("GET", "/v1/assets"): lambda q: _page(
+                [
+                    {
+                        "uid": "x1",
+                        "unique_identifier": "ALPACA::1",
+                        "ticker": "A",
+                        "figi": None,
+                        "composite_figi": None,
+                        "tradable": True,
+                    },
+                    {
+                        "uid": "x2",
+                        "unique_identifier": "ALPACA::2",
+                        "ticker": "VST",
+                        "figi": None,
+                        "composite_figi": None,
+                        "tradable": True,
+                    },
+                ],
+                q.get("offset", 0),
+            ),
+        }
+    )
+    refs = AlpacaConnector(http).resolve_assets("a1", ["BBG00DXDL6Q1", "BBG0MISSING"])  # type: ignore[arg-type]
+    assert list(refs) == ["BBG00DXDL6Q1"]
+    assert (
+        refs["BBG00DXDL6Q1"].asset_identifier == "ALPACA::2"
+        and refs["BBG00DXDL6Q1"].symbol == "VST"
+    )

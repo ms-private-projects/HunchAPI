@@ -176,7 +176,12 @@ class AlpacaConnector:
 
     # -- assets -------------------------------------------------------------------------------
     def resolve_assets(self, account_uid: str, figis: list[str]) -> dict[str, VenueAssetRef]:
+        from hunch.instruments.services import instruments_for_figis
+
         wanted = set(figis)
+        # The connector's registered assets may carry no FIGI; then the ticker Hunch knows for
+        # the instrument identifies it (looked up once, when a row without a FIGI turns up).
+        by_ticker: dict[str, str] | None = None
         resolved: dict[str, VenueAssetRef] = {}
         offset, limit = 0, 100
         while wanted and True:
@@ -184,6 +189,14 @@ class AlpacaConnector:
             items = page.get("items") or []
             for item in items:
                 figi = item.get("figi") or item.get("composite_figi")
+                if not figi:
+                    if by_ticker is None:
+                        by_ticker = {
+                            row.ticker: known
+                            for known, row in instruments_for_figis(figis).items()
+                            if row.ticker
+                        }
+                    figi = by_ticker.get(item.get("ticker") or item.get("symbol"))
                 if figi in wanted:
                     resolved[figi] = VenueAssetRef(
                         figi=figi,
