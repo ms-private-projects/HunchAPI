@@ -11,7 +11,8 @@ Muse models do all of its reasoning: Muse Wonder 1.0 researches each thesis, and
 runs the Hunch Agent, the daily thesis check and the critique. Code decides the weights, the limits
 and the orders.
 
-- Watch the [three-minute film](films/hunch-demo-video/hunch-demo.mp4).
+- Watch the [three-minute film](https://youtu.be/5JdsPBNQIsU): real screens of Muse at work in
+  Hunch ([also in the repository](films/hunch-hackathon-video/hunch-hackathon.mp4)).
 - Read [how Hunch uses Muse](docs/muse.md), then [a real Muse Wonder research](docs/examples/README.md)
   and the basket the guardrails built from it.
 - [Check it in five minutes](#for-judges): the tests run with no credentials and no platform access.
@@ -66,14 +67,14 @@ non-Meta model.
 
 | Measure | Before 26 Oct, 17:00 UTC | During the hackathon |
 | --- | --- | --- |
-| Commits on `main` | 19 (the template commit and 18 of ours) | 62 (77%) |
+| Commits on `main` | 19 (the template commit and 18 of ours) | 64 (77%) |
 | Lines of code, tests and docs | 72% | **28%** |
 
 Each line counts for the commit that last wrote it (`git blame -w -M -C`), so moved lines and
 whitespace changes keep their original date. Left out: the licence text, `uv.lock`, the
 `requirements.txt` exported from it, the instrument universe (`src/hunch/instruments/universe.json`), the stored model answer
 in `docs/examples` and binary files such as the film and the screenshots. By area, 19% of the
-application code, 43% of the tests and 59% of the docs were written during the hackathon.
+application code, 43% of the tests and 60% of the docs were written during the hackathon.
 `uv run scripts/hackathon_share.py` recomputes every number here.
 
 The Command Center site lives in the
