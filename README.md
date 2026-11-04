@@ -2,6 +2,25 @@
 
 **Turn a thesis into a portfolio you can hold, measure and stand behind.**
 
+Hunch takes an idea about the world, written in plain language ("AI data centres will strain the
+power grid"), and turns it into a researched, guard-railed portfolio of US-listed equities. The
+thesis is the unit of record: every position cites its evidence, and every weight, review, proposal
+and order traces back to the idea. Every trading day Hunch checks whether the thesis still holds,
+and it trades at the person's own broker only with their approval or inside limits they set. Meta's
+Muse models do all of its reasoning: Muse Wonder 1.0 researches each thesis, and Muse Spark 1.3
+runs the Hunch Agent, the daily thesis check and the critique. Code decides the weights, the limits
+and the orders.
+
+- Watch the [three-minute film](films/hunch-demo-video/hunch-demo.mp4).
+- Read [how Hunch uses Muse](docs/muse.md), then [a real Muse Wonder research](docs/examples/README.md)
+  and the basket the guardrails built from it.
+- [Check it in five minutes](#for-judges): the tests run with no credentials and no platform access.
+
+This repository is the Hunch backend on the Main Sequence platform: the FastAPI application with
+its MCP server, the Hunch Agent (a TAU Harness Agent) and the Jobs that research, build, review and
+execute. The Command Center site lives in the
+[`Hunch` repository](https://github.com/ms-private-projects/Hunch/tree/command-center-site).
+
 ## Before and during the hackathon
 
 Hunch is our entry to the
@@ -36,7 +55,8 @@ non-Meta model.
   scale to zero to wake up, and fills price history in small batches. The daily sweep starts one
   review per active take. A take rebuilt in the same session now gets its new basket (ADR 0002).
 - **The product plan was rewritten** around Hunch's own ontology.
-- **The demo film** in [`films/hunch-demo-video`](films/hunch-demo-video).
+- **The demo film** was written, voiced and rendered
+  ([`films/hunch-demo-video`](films/hunch-demo-video)).
 - **The documentation for judges:** this guide, [how Hunch uses Muse](docs/muse.md),
   [a take end to end](docs/walkthrough.md), and a [real research](docs/examples/README.md) with
   screenshots of the running site.
@@ -53,7 +73,7 @@ whitespace changes keep their original date. Left out: `uv.lock`, the `requireme
 from it, the instrument universe (`src/hunch/instruments/universe.json`), the stored model answer
 in `docs/examples` and binary files such as the film and the screenshots. By area, 19% of the
 application code, 43% of the tests and 59% of the docs were written during the hackathon.
-`python3 scripts/hackathon_share.py` recomputes every number here.
+`uv run scripts/hackathon_share.py` recomputes every number here.
 
 The Command Center site lives in the
 [`Hunch` repository](https://github.com/ms-private-projects/Hunch/tree/command-center-site) and
@@ -62,14 +82,11 @@ and 4 of its 11 commits came during the hackathon.
 
 ## For judges
 
-Hunch turns a person's investment thesis, written in plain language, into a researched,
-guard-railed portfolio of US-listed equities. It tracks the portfolio every trading day and trades
-it at the person's own broker only with their approval or inside limits they set. Meta's Muse
-models do all of its reasoning. This table maps each judging criterion to where the evidence is:
+This table maps each judging criterion to where the evidence is:
 
-| Criterion | Where to look |
+| Criterion | What to read |
 | --- | --- |
-| **Impact** | [What Hunch is](#what-hunch-is), [The idea](#the-idea) and the ontology in section 1 of the [plan](docs/planning/0001-hunch-product-and-build-proposal.md) |
+| **Impact** | [The idea](#the-idea), the [Concepts](#concepts) and the ontology in section 1 of the [plan](docs/planning/0001-hunch-product-and-build-proposal.md) |
 | **Use of Meta AI tooling** | [How Hunch uses Muse](docs/muse.md): the four roles Muse plays (the Agent, research, review and critique), how each call is made and bounded, the research contract, and what we measured on Muse. The decisions are [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) |
 | **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 187 tests by area. Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
 | **Demo** | The [demo film](#demo-film), [screenshots of the running site](#the-running-site), and [a real Muse Wonder research](docs/examples/README.md) with the basket built from it |
@@ -114,19 +131,6 @@ this repository holds only Hunch's own product logic:
 - **Models.** Recorded inference gives access to Meta's Muse models and records every model call.
 - **Sign-in and the site.** The Command Center handles sign-in and identity for the site and every
   API call.
-
-## What Hunch is
-
-Hunch takes an idea about the world, written in plain language, and turns it into a portfolio of
-US-listed equities. It researches the idea and cites its evidence, builds a weighted basket under
-hard guardrails, tracks that basket as a model portfolio from the day it goes live and, when the
-person links a brokerage account and says so, funds and trades it at Alpaca or Interactive
-Brokers. Every trading day it checks the portfolio against its target and the thesis against new
-evidence, and proposes or makes only the changes the person has authorised.
-
-This repository is the Hunch backend on Main Sequence: the FastAPI application with its MCP
-server, the Hunch Agent (a TAU Harness Agent) and the Jobs that research, build, review and
-execute. The Command Center site lives in the [`Hunch` repository](https://github.com/ms-private-projects/Hunch/tree/command-center-site).
 
 ## Demo film
 

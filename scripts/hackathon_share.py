@@ -1,6 +1,6 @@
 """How much of the repository was written during the hackathon, as the README reports it.
 
-Run from the repository root: `python3 scripts/hackathon_share.py`. A commit counts by its author
+Run from the repository root: `uv run scripts/hackathon_share.py`. A commit counts by its author
 time. Each line of a tracked text file counts for the author time of the commit that last wrote it
 (`git blame -w -M -C`), so whitespace-only edits and moved or copied lines keep their original
 time. The lock file, the requirements exported from it, the instrument universe, the stored model
