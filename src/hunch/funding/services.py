@@ -81,6 +81,11 @@ def active_link(user_uid: str, profile_account_uid: uuid.UUID | str) -> HunchUse
         raise LookupError("The linked account does not exist.")
     if link.status != "active":
         raise FundingError(f"The linked account is {link.status}; only active links can be funded.")
+    if not (link.metadata_json or {}).get("ownership_verified", True):
+        raise FundingError(
+            "The connector has not confirmed this account is yours; Hunch funds only verified "
+            "links. Store the account's keys on the connector as yourself, then link it again."
+        )
     return link
 
 
