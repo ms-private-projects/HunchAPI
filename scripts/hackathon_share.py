@@ -3,8 +3,8 @@
 Run from the repository root: `uv run scripts/hackathon_share.py`. A commit counts by its author
 time. Each line of a tracked text file counts for the author time of the commit that last wrote it
 (`git blame -w -M -C`), so whitespace-only edits and moved or copied lines keep their original
-time. The lock file, the requirements exported from it, the instrument universe, the stored model
-answer and binary files are left out.
+time. The licence text, the lock file, the requirements exported from it, the instrument universe,
+the stored model answer and binary files are left out.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import subprocess
 
 KICKOFF = 1793034000  # 2026-10-26T17:00:00Z, when the hackathon started
 EXCLUDED = {
+    "LICENSE.md",
     "uv.lock",
     "requirements.txt",
     "src/hunch/instruments/universe.json",

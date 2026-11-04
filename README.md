@@ -65,12 +65,12 @@ non-Meta model.
 
 | Measure | Before 26 Oct, 17:00 UTC | During the hackathon |
 | --- | --- | --- |
-| Commits on `main` | 19 (the template commit and 18 of ours) | 60 (76%) |
+| Commits on `main` | 19 (the template commit and 18 of ours) | 62 (77%) |
 | Lines of code, tests and docs | 72% | **28%** |
 
 Each line counts for the commit that last wrote it (`git blame -w -M -C`), so moved lines and
-whitespace changes keep their original date. Left out: `uv.lock`, the `requirements.txt` exported
-from it, the instrument universe (`src/hunch/instruments/universe.json`), the stored model answer
+whitespace changes keep their original date. Left out: the licence text, `uv.lock`, the
+`requirements.txt` exported from it, the instrument universe (`src/hunch/instruments/universe.json`), the stored model answer
 in `docs/examples` and binary files such as the film and the screenshots. By area, 19% of the
 application code, 43% of the tests and 59% of the docs were written during the hackathon.
 `uv run scripts/hackathon_share.py` recomputes every number here.
@@ -517,3 +517,10 @@ Their Jobs are deployed hosted as well.
 Hunch does not give investment advice. The person states the thesis and authorises every trade, or
 the autopilot limits that bound them. Returns shown for takes that hold no invested money are
 simulated, and past performance does not predict future results.
+
+## License
+
+Hunch is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md): anyone may use,
+change and share it for noncommercial purposes, and commercial use needs a licence from Main
+Sequence. The rights the hackathon Organizers hold under the event's Official Rules are separate
+and unaffected.

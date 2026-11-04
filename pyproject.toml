@@ -7,6 +7,8 @@ name = "hunchapi"
 version = "0.1.0"
 description = "Hunch: theses turned into managed portfolios on Main Sequence, ms-markets and the Alpaca and IBKR connectors."
 readme = "README.md"
+license = "PolyForm-Noncommercial-1.0.0"
+license-files = ["LICENSE.md"]
 requires-python = ">=3.13,<3.14"
 dependencies = [
   # Keep compatible ranges here and let uv.lock capture the reproducible environment.
