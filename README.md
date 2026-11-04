@@ -14,7 +14,7 @@ candidates, code sizes them under those limits, and money moves only at the pers
 on their approval or inside autopilot limits they set. Until a pending Markets API deploy lets the
 broker connector submit orders, they fill on Hunch's simulated venue.
 
-- Watch the [three-minute film](https://youtu.be/8z7mYjCD558): real screens of Muse at work in
+- Watch the [three-minute film](https://youtu.be/ePFCpg3Qhgk): real screens of Muse at work in
   Hunch ([also in the repository](films/hunch-hackathon-video/hunch-hackathon.mp4)).
 - Read [how Hunch uses Muse](docs/muse.md), then [a real Muse Wonder research](docs/examples/README.md)
   and the basket the guardrails built from it.
@@ -172,9 +172,9 @@ this repository holds only Hunch's own product logic:
 
 ## Demo film
 
-[![Hunch hackathon film](films/hunch-hackathon-video/poster.jpg)](https://youtu.be/8z7mYjCD558)
+[![Hunch hackathon film](films/hunch-hackathon-video/poster.jpg)](https://youtu.be/ePFCpg3Qhgk)
 
-**The hackathon cut (2:59).** [Watch it on YouTube](https://youtu.be/8z7mYjCD558) or
+**The hackathon cut (2:59).** [Watch it on YouTube](https://youtu.be/ePFCpg3Qhgk) or
 [in the repository](films/hunch-hackathon-video/hunch-hackathon.mp4). It follows a person from a
 hunch to a portfolio on real screens of the Hunch site on the local stack: the thesis critique
 arriving from Muse Spark 1.3, research 1 by Muse Wonder 1.0 with its roles and cited evidence, the
