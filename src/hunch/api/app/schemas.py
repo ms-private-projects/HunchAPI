@@ -340,6 +340,10 @@ class LinkedAccountResource(BaseModel):
     uid: str
     venue: str
     account_uid: str
+    connector_account_uid: str | None = Field(
+        default=None,
+        description="The account's id at the venue connector; equals account_uid when Hunch and the connector share one Markets registry.",
+    )
     account_identifier: str | None = None
     account_name: str | None = None
     is_paper: bool = True

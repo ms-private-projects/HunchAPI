@@ -36,6 +36,7 @@ from hunch.instruments.services import ensure_universe, instruments_by_figi
 from hunch.market_data import latest_closes, session_schedule
 from hunch.portfolios.services import hunch_portfolio_for_take
 from hunch.profiles import HunchUserProfileAccount, utc_now
+from hunch.profiles.accounts import venue_account_uid
 from hunch.settings import CASH_ASSET_IDENTIFIER, PROPOSAL_OPEN_STATUSES
 from hunch.takes import Take
 from hunch.takes.services import TakeStateError, owned_take
@@ -377,11 +378,11 @@ def fund_take(
         raise TakeStateError(f"A take in status {take.status} cannot be funded; build it first.")
     link = active_link(user_uid, request.profile_account_uid)
     connector = connector_for(link.venue)
-    account = connector.get_account(str(link.account_uid))
+    account = connector.get_account(venue_account_uid(link))
     if account is None or not account.is_active:
         raise FundingError("The venue account is not available at the connector.")
-    snapshot = connector.latest_holdings(str(link.account_uid)) or connector.capture_holdings(
-        str(link.account_uid)
+    snapshot = connector.latest_holdings(venue_account_uid(link)) or connector.capture_holdings(
+        venue_account_uid(link)
     )
     cash = snapshot.cash(account.currency or CASH_ASSET_IDENTIFIER)
     if cash + 0.01 < request.target_notional:
@@ -395,7 +396,7 @@ def fund_take(
     target = _target_weights(take)
     if not target:
         raise TakeStateError("The take has no basket yet; build it first.")
-    venue_assets = connector.resolve_assets(str(link.account_uid), list(target))
+    venue_assets = connector.resolve_assets(venue_account_uid(link), list(target))
     missing = sorted(set(target) - set(venue_assets))
     if missing:
         raise FundingError(
@@ -464,7 +465,7 @@ def propose(
     target = _target_weights(take) if target is None else target
     figis = sorted(set(target) | set(_positions(current)))
     prices = _prices(figis)
-    venue_assets = connector.resolve_assets(str(link.account_uid), figis)
+    venue_assets = connector.resolve_assets(venue_account_uid(link), figis)
     proposal_uid = uuid.uuid4()
     legs, notes = compute_legs(
         proposal_uid=proposal_uid,
@@ -672,7 +673,7 @@ def submit_proposal(proposal: HunchRebalanceProposal) -> HunchRebalanceProposal:
     # The batch is Hunch's identifier of this execution; the venue's connector keeps the
     # execution ledger (orders, trades and any order batch) on its side (ADR 0006).
     try:
-        result = connector.submit_orders(str(link.account_uid), batch_id, _order_legs(proposal))
+        result = connector.submit_orders(venue_account_uid(link), batch_id, _order_legs(proposal))
     except ConnectorError as exc:
         failed = HunchRebalanceProposal.update(
             proposal.uid,
@@ -725,7 +726,7 @@ def sync_proposal(
     link, connector = _link_and_connector(funding)
     batch_id = (proposal.metadata_json or {}).get("batch_id") or f"HUNCH_BATCH__{proposal.uid.hex}"
     if states is None:
-        states = connector.sync_orders(str(link.account_uid), batch_id)
+        states = connector.sync_orders(venue_account_uid(link), batch_id)
     if not states:
         return proposal
     now = utc_now()
@@ -752,8 +753,8 @@ def sync_proposal(
         applied[order.client_order_id] = order.filled_quantity
         new_fills = True
     if new_fills and funding.virtual_fund_uid is not None:
-        snapshot = connector.latest_holdings(str(link.account_uid)) or connector.capture_holdings(
-            str(link.account_uid)
+        snapshot = connector.latest_holdings(venue_account_uid(link)) or connector.capture_holdings(
+            venue_account_uid(link)
         )
         allocations = [
             {

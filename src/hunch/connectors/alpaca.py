@@ -80,7 +80,9 @@ class AlpacaConnector:
             buying_power=_float(item.get("buying_power")),
             owner_user_uid=item.get("credentials_updated_by_user_uid"),
             external_account_id=item.get("account_number"),
-            ownership_verifiable=True,
+            # The connector names who saved the account's credentials; an account registered
+            # without that (a seeded paper account) cannot be verified and links as unverified.
+            ownership_verifiable=item.get("credentials_updated_by_user_uid") is not None,
             raw=item,
         )
 
@@ -224,6 +226,9 @@ class AlpacaConnector:
         self._require_execution()
         payload = {
             "batch_id": batch_id,
+            # An approval given after the close is still an approval: the day orders queue at
+            # Alpaca for the next session, and the execution sync books the fills when they come.
+            "queue_when_closed": True,
             "orders": [
                 {
                     "client_order_id": leg.client_order_id,

@@ -298,6 +298,11 @@ class OwnerVenue:
 def test_linking_rules_check_ownership_and_exclusivity(monkeypatch) -> None:
     install_fake_rows(monkeypatch, HunchUserProfile, HunchUserProfileAccount)
     monkeypatch.setenv("HUNCH_CONNECTOR_MODE", "live")
+    # A shared registry: the connector's Account row is the one the link points at.
+    monkeypatch.setattr(
+        "hunch.profiles.accounts.registry_account_uid",
+        lambda venue, account: uuid.UUID(account.account_uid),
+    )
     with patch("hunch.profiles.accounts.notify"):
         theirs = OwnerVenue(OTHER)
         with (
@@ -403,3 +408,57 @@ def test_registry_prefers_the_release_uid_in_live_mode(monkeypatch) -> None:
     assert isinstance(connector.client, ReleaseHTTPClient)
     assert connector_status("alpaca")["release_uid"] == "7576a872-5bb0-414f-8d5c-795634bca83a"
     reset_connectors()
+
+
+def test_alpaca_links_unowned_accounts_as_unverified_and_queues_orders_after_close(
+    monkeypatch,
+) -> None:
+    """A paper account registered on the connector without a person (external credentials) is
+    linkable as unverified, and an approved batch is queued when the market is closed."""
+    account = {
+        "uid": "a9",
+        "account_uid": "a9",
+        "unique_identifier": "PA9__ALPACA_PAPER",
+        "is_paper": True,
+        "account_is_active": True,
+        "account_name": "Seeded paper",
+        "status": "ACTIVE",
+        "currency": "USD",
+        "credentials_updated_by_user_uid": None,
+    }
+    http = CannedHTTP(
+        {
+            ("GET", "/v1/project-state/capabilities"): {
+                "features": [{"id": "execution", "status": "available"}]
+            },
+            ("GET", "/v1/accounts"): lambda q: _page([account], q.get("offset", 0)),
+            ("POST", "/v1/accounts/a9/orders/actions/submit"): {"accepted": True, "orders": []},
+        }
+    )
+    connector = AlpacaConnector(http)  # type: ignore[arg-type]
+    listed = connector.list_accounts()[0]
+    assert listed.ownership_verifiable is False and listed.owner_user_uid is None
+    assert connector.list_accounts(owner_user_uid=ME) == []
+
+    from hunch.profiles import accounts as linking
+
+    monkeypatch.setattr(linking, "connector_for", lambda venue: connector)
+    monkeypatch.setattr(linking.HunchUserProfileAccount, "filter", lambda **kwargs: [])
+    assert [a.account_uid for a in linking.candidate_accounts(ME, "alpaca")] == ["a9"]
+
+    legs = [
+        OrderLeg(
+            client_order_id="c1",
+            figi="BBG00DXDL6Q1",
+            asset_identifier="ALPACA::abc",
+            symbol="VST",
+            side="buy",
+            quantity=3.0,
+            order_type="market",
+            time_in_force="day",
+        )
+    ]
+    result = connector.submit_orders("a9", "HUNCH_BATCH__x", legs)
+    assert result.accepted and result.batch_id == "HUNCH_BATCH__x"
+    body = next(c[2] for c in http.calls if c[1] == "/v1/accounts/a9/orders/actions/submit")
+    assert body["queue_when_closed"] is True and body["orders"][0]["symbol"] == "VST"

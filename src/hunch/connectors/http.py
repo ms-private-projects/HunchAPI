@@ -24,7 +24,7 @@ import requests
 from hunch.connectors.base import ConnectorCapabilityUnavailable, ConnectorError
 
 HeadersProvider = Callable[[], Mapping[str, str]]
-DEFAULT_TIMEOUT = 30.0
+DEFAULT_TIMEOUT = 90.0  # a hosted connector that scales to zero answers in tens of seconds
 
 
 def sdk_headers() -> Mapping[str, str]:

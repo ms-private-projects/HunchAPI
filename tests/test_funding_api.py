@@ -131,6 +131,11 @@ def venue(monkeypatch):
     monkeypatch.setenv("HUNCH_CONNECTOR_MODE", "simulated")
     monkeypatch.setattr("hunch.connectors.connector_for", lambda venue: fake)
     monkeypatch.setattr("hunch.profiles.accounts.connector_for", lambda venue: fake)
+    # The fake venue's account is the registry row itself, as in a shared Markets registry.
+    monkeypatch.setattr(
+        "hunch.profiles.accounts.registry_account_uid",
+        lambda venue, account: uuid.UUID(account.account_uid),
+    )
     monkeypatch.setattr("hunch.funding.services.connector_for", lambda venue: fake)
     yield fake
     reset_connectors()

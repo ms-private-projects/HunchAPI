@@ -43,15 +43,58 @@ def owned_link(user_uid: str, link_uid: uuid.UUID | str) -> HunchUserProfileAcco
     return link
 
 
+def venue_account_uid(link: HunchUserProfileAccount) -> str:
+    """The account's id at the venue connector: what every connector call takes.
+
+    It equals ``link.account_uid`` when Hunch and the connector share one Markets registry; when
+    they do not, the link points at Hunch's mirrored ``Account`` row and the connector's id is kept
+    in the link's metadata.
+    """
+    return str((link.metadata_json or {}).get("connector_account_uid") or link.account_uid)
+
+
+def registry_account_uid(venue: str, account: VenueAccount) -> uuid.UUID:
+    """The ``Account`` row in Hunch's Markets registry for a venue account (ADR 0006).
+
+    The connector owns the account and, in a shared registry, its row is found by identifier. In a
+    registry the connector does not write (a local stack, or another Environment), Hunch records
+    the venue account once, as a market primitive in the ms-markets ``Account`` table, so that
+    links, fundings and the ledger can reference it by foreign key.
+    """
+    from msm.api.accounts import Account
+
+    rows = Account.filter(unique_identifier=account.unique_identifier, limit=5)
+    if rows:
+        return uuid.UUID(str(rows[0].uid))
+    row = Account.upsert(
+        unique_identifier=account.unique_identifier,
+        account_name=account.account_name or account.unique_identifier,
+        is_paper=account.is_paper,
+        account_is_active=account.is_active,
+        metadata_json={
+            "venue": venue,
+            "connector_account_uid": account.account_uid,
+            "mirrored_from_connector": True,
+        },
+    )
+    return uuid.UUID(str(row.uid))
+
+
 def candidate_accounts(user_uid: str, venue: str) -> list[VenueAccount]:
     """Accounts the connector reports for this person that are not linked yet."""
     connector = connector_for(venue)
     linked = {
-        str(row.account_uid)
+        venue_account_uid(row)
         for row in HunchUserProfileAccount.filter(venue=venue, limit=5000)
         if row.status != "revoked"
     }
-    accounts = connector.list_accounts(owner_user_uid=user_uid)
+    # Accounts the connector registered for this person, and those whose owner it cannot name
+    # (they link as unverified, which the site shows).
+    accounts = [
+        account
+        for account in connector.list_accounts()
+        if account.owner_user_uid == user_uid or not account.ownership_verifiable
+    ]
     return [
         account for account in accounts if account.account_uid not in linked and account.is_active
     ]
@@ -94,13 +137,14 @@ def start_link(
             raise LinkError("The connector registered this account for another person.")
     else:
         verified = False
-    existing = HunchUserProfileAccount.filter(account_uid=uuid.UUID(account.account_uid))
+    registry_uid = registry_account_uid(venue, account)
+    existing = HunchUserProfileAccount.filter(account_uid=registry_uid)
     for row in existing:
         if row.user_uid != user_uid and row.status != "revoked":
             raise LinkError("Another Hunch user already linked this account.")
     now = utc_now()
     link = HunchUserProfileAccount.upsert(
-        account_uid=uuid.UUID(account.account_uid),
+        account_uid=registry_uid,
         user_uid=user_uid,
         venue=venue,
         is_paper=account.is_paper,
@@ -109,6 +153,7 @@ def start_link(
         activated_at=now,
         revoked_at=None,
         metadata_json={
+            "connector_account_uid": account.account_uid,
             "account_identifier": account.unique_identifier,
             "account_name": account.account_name,
             "external_account_id": account.external_account_id,
@@ -148,7 +193,7 @@ def revoke_link(user_uid: str, link_uid: uuid.UUID | str) -> HunchUserProfileAcc
 
 def link_account(link: HunchUserProfileAccount) -> VenueAccount | None:
     try:
-        return connector_for(link.venue).get_account(str(link.account_uid))
+        return connector_for(link.venue).get_account(venue_account_uid(link))
     except ConnectorError:
         return None
 
@@ -158,8 +203,8 @@ def link_holdings(
 ) -> HoldingsSnapshot | None:
     connector = connector_for(link.venue)
     if capture:
-        return connector.capture_holdings(str(link.account_uid))
-    return connector.latest_holdings(str(link.account_uid))
+        return connector.capture_holdings(venue_account_uid(link))
+    return connector.latest_holdings(venue_account_uid(link))
 
 
 def link_payload(
@@ -170,6 +215,7 @@ def link_payload(
         "uid": str(link.uid),
         "venue": link.venue,
         "account_uid": str(link.account_uid),
+        "connector_account_uid": venue_account_uid(link),
         "account_identifier": metadata.get("account_identifier"),
         "account_name": (account.account_name if account else None) or metadata.get("account_name"),
         "is_paper": link.is_paper,
