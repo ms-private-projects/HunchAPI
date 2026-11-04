@@ -18,6 +18,12 @@ with real screens of the product and a chapter on how Hunch uses Muse:
 - The opening, the take form and the Muse-app scene are styled cards, as in the marketing cut;
   "Hunch inside the Muse app" is labelled coming soon.
 
+`hunch-live-run.mp4` (2:42, 6.8 MB) is a separate, unedited screen recording of the local stack
+made with `tools/capture/record.cjs` (Chrome's screencast through puppeteer, frames assembled at
+their real timestamps): one take from a new thesis to a filled proposal on the simulated venue, with
+the UTC clock and the elapsed time burned in. It is also on YouTube, unlisted:
+https://youtu.be/QQTfoTPIWJg.
+
 The film was made as a [HyperFrames](https://hyperframes.heygen.com) project (HTML and CSS
 animated with GSAP). The project, its captures and media stay on the team's machines; only this cut
 is committed. The voice is a Fish Audio Drama 3 voice invented for the film (no real person

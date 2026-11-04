@@ -114,7 +114,7 @@ This table maps each judging criterion to where the evidence is:
 | **Impact** | [The idea](#the-idea), the [Concepts](#concepts) and the ontology in section 1 of the [plan](docs/planning/0001-hunch-product-and-build-proposal.md) |
 | **Use of Meta AI tooling** | [How Hunch uses Muse](docs/muse.md): the four roles Muse plays (the Agent, research, review and critique), how each call is made and bounded, the research contract, and what we measured on Muse. The decisions are [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) |
 | **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 189 tests by area (186 run with no credentials, 3 skip without the local MetaTables runtime). Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
-| **Demo** | The [demo film](#demo-film), [screenshots of the running site](#the-running-site), and [a real Muse Wonder research](docs/examples/README.md) with the basket built from it |
+| **Demo** | The [demo film](#demo-film), [an unedited live run](#demo-film) of a take from thesis to filled proposal (2:42, one take, clock on screen), [screenshots of the running site](#the-running-site), and [a real Muse Wonder research](docs/examples/README.md) with the basket built from it |
 | **The advice boundary** | Hunch gives no investment advice. The person writes the thesis and the limits, Muse proposes candidates and code sizes them, money moves only on the person's approval or inside autopilot limits they set, and the leaderboard ranks published takes by their own record since activation ([the commitments](#the-idea), [Disclaimer](#disclaimer)) |
 
 **Check it in five minutes.** The tests need no credentials and no platform access: the model,
@@ -205,6 +205,15 @@ eight orders filled on Hunch's simulated venue, the daily review Muse Spark 1.3 
 published take on the leaderboard. The opening, the take form and the Muse-app scene are styled
 cards, and Hunch inside the Muse app is labelled coming soon
 ([`films/hunch-hackathon-video`](films/hunch-hackathon-video)).
+
+**The live run, unedited (2:42).** [Watch it on YouTube](https://youtu.be/QQTfoTPIWJg) or
+[in the repository](films/hunch-hackathon-video/hunch-live-run.mp4): one unbroken screen recording
+of the local stack on 4 November 2026 at 18:05 UTC, no cuts and no speed changes, with the UTC
+clock, the elapsed time and the step in the corner. A new take ("Copper outruns the mines") is
+written, critiqued by Muse Spark 1.3 (landed at 0:53, 32.8 s), researched by Muse Wonder 1.0
+(1:45, 51.2 s), built into a basket under its limits (2:01), funded with $10,000 in approval mode
+(2:28) and approved; the seven orders filled on the simulated venue at 2:41. The waits are real:
+the platform backend was slow that afternoon.
 
 **The marketing cut (3:00).** [On YouTube](https://youtu.be/wKARzkQHrqU) or
 [in the repository](films/hunch-demo-video/hunch-demo.mp4): the same journey told with cards in the
