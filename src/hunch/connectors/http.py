@@ -49,7 +49,38 @@ class ConnectorHTTPClient:
         self._timeout = timeout
         self._session = session or requests.Session()
 
+    READ_ATTEMPTS = 3
+    READ_RETRY_SECONDS = 3.0
+
     def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+        json: Any | None = None,
+        timeout: float | None = None,
+    ) -> Any:
+        """One call; a read that fails in a retryable way (transport, 5xx) is tried again twice.
+
+        Writes are never repeated here: an order batch carries its own id and the connector
+        refuses a duplicate.
+        """
+        import time
+
+        attempts = self.READ_ATTEMPTS if method == "GET" else 1
+        for attempt in range(1, attempts + 1):
+            try:
+                return self._request_once(method, path, params=params, json=json, timeout=timeout)
+            except ConnectorCapabilityUnavailable:
+                raise
+            except ConnectorError as exc:
+                if not exc.retryable or attempt == attempts:
+                    raise
+                time.sleep(self.READ_RETRY_SECONDS)
+        raise AssertionError("unreachable")
+
+    def _request_once(
         self,
         method: str,
         path: str,
