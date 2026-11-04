@@ -75,7 +75,7 @@ sequenceDiagram
 
 ## Tests
 
-The suite holds 187 tests. 184 run with no credentials and no platform access; 3 need the local
+The suite holds 189 tests. 186 run with no credentials and no platform access; 3 need the local
 MetaTables runtime and skip without it (`HUNCH_LOCAL_RUNTIME_TESTS=1`).
 
 | Area | Tests |

@@ -11,7 +11,7 @@ Muse models do all of its reasoning: Muse Wonder 1.0 researches each thesis, and
 runs the Hunch Agent, the daily thesis check and the critique. Code decides the weights, the limits
 and the orders.
 
-- Watch the [three-minute film](https://youtu.be/5JdsPBNQIsU): real screens of Muse at work in
+- Watch the [three-minute film](https://youtu.be/8z7mYjCD558): real screens of Muse at work in
   Hunch ([also in the repository](films/hunch-hackathon-video/hunch-hackathon.mp4)).
 - Read [how Hunch uses Muse](docs/muse.md), then [a real Muse Wonder research](docs/examples/README.md)
   and the basket the guardrails built from it.
@@ -67,13 +67,13 @@ non-Meta model.
 
 | Measure | Before 26 Oct, 17:00 UTC | During the hackathon |
 | --- | --- | --- |
-| Commits on `main` | 19 (the template commit and 18 of ours) | 65 (77%) |
-| Lines of code, tests and docs | 72% | **28%** |
+| Commits on `main` | 19 (the template commit and 18 of ours) | 73 (79%) |
+| Lines of code, tests and docs | 71% | **29%** |
 
 Each line counts for the commit that last wrote it (`git blame -w -M -C`), so moved lines and
 whitespace changes keep their original date. Left out: the licence text, `uv.lock`, the
 `requirements.txt` exported from it, the instrument universe (`src/hunch/instruments/universe.json`), the stored model answer
-in `docs/examples` and binary files such as the film and the screenshots. By area, 19% of the
+in `docs/examples` and binary files such as the film and the screenshots. By area, 20% of the
 application code, 43% of the tests and 60% of the docs were written during the hackathon.
 `uv run scripts/hackathon_share.py` recomputes every number here.
 
@@ -90,7 +90,7 @@ This table maps each judging criterion to where the evidence is:
 | --- | --- |
 | **Impact** | [The idea](#the-idea), the [Concepts](#concepts) and the ontology in section 1 of the [plan](docs/planning/0001-hunch-product-and-build-proposal.md) |
 | **Use of Meta AI tooling** | [How Hunch uses Muse](docs/muse.md): the four roles Muse plays (the Agent, research, review and critique), how each call is made and bounded, the research contract, and what we measured on Muse. The decisions are [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) |
-| **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 187 tests by area (184 run with no credentials, 3 skip without the local MetaTables runtime). Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
+| **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 189 tests by area (186 run with no credentials, 3 skip without the local MetaTables runtime). Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
 | **Demo** | The [demo film](#demo-film), [screenshots of the running site](#the-running-site), and [a real Muse Wonder research](docs/examples/README.md) with the basket built from it |
 
 **Check it in five minutes.** The tests need no credentials and no platform access: the model,
@@ -100,7 +100,7 @@ venue.
 ```bash
 git clone https://github.com/ms-private-projects/HunchAPI.git && cd HunchAPI
 uv sync
-uv run pytest -q    # 184 passed, 3 skipped (those need the local MetaTables runtime)
+uv run pytest -q    # 186 passed, 3 skipped (those need the local MetaTables runtime)
 ```
 
 **What is real and what is simulated, today.**
@@ -109,11 +109,11 @@ uv run pytest -q    # 184 passed, 3 skipped (those need the local MetaTables run
 | --- | --- | --- |
 | Research, critique, daily review | Live on Muse through the Meta Model API; every call is a recorded request | [docs/muse.md](docs/muse.md), [a stored answer](docs/examples/README.md) |
 | The Hunch Agent | Live on Muse Spark 1.3, acting through 16 MCP tools | [The Hunch Agent](#the-hunch-agent) |
-| Weights, limits, orders | Decided in code, never by a model; 187 tests, of which 184 run with no credentials and 3 skip without the local MetaTables runtime | [docs/walkthrough.md](docs/walkthrough.md) |
+| Weights, limits, orders | Decided in code, never by a model; 189 tests, of which 186 run with no credentials and 3 skip without the local MetaTables runtime | [docs/walkthrough.md](docs/walkthrough.md) |
 | Daily prices | **Synthetic**: a deterministic series per instrument, until a market-data provider (Alpaca bars) is connected. Returns, price facts and the leaderboard are not market data yet | [`market_data/`](src/hunch/market_data) |
 | Trading | **Simulated venue** end to end (proposals, orders, fills, reconciliation) through the same connector port the live venues use; hosted trading waits for the broker connectors' execution release | [Status](#status), [ADR 0003](docs/adrs/0003-funding-and-execution-through-connectors.md) |
 | Broker credentials | Never in Hunch: the Alpaca and Interactive Brokers connectors hold them | [Architecture](#architecture) |
-| The films | Hackathon cut: the critique, research and basket scenes are captures of the site on the local stack; its other scenes and the whole marketing cut are styled cards with illustrative data, and both say so | [Demo film](#demo-film) |
+| The films | Hackathon cut: the critique, research, basket, funding, daily-review and leaderboard scenes are captures of the site on the local stack (fills on the simulated venue); its opening, take form and Muse-app scenes, and the whole marketing cut, are styled cards with illustrative data, and both say so | [Demo film](#demo-film) |
 
 The code, the tests and the Muse configuration are what runs hosted on Main Sequence; the screenshots
 and the research example are real output.
@@ -161,16 +161,18 @@ this repository holds only Hunch's own product logic:
 
 ## Demo film
 
-[![Hunch hackathon film](films/hunch-hackathon-video/poster.jpg)](https://youtu.be/5JdsPBNQIsU)
+[![Hunch hackathon film](films/hunch-hackathon-video/poster.jpg)](https://youtu.be/8z7mYjCD558)
 
-**The hackathon cut (2:59).** [Watch it on YouTube](https://youtu.be/5JdsPBNQIsU) or
+**The hackathon cut (2:59).** [Watch it on YouTube](https://youtu.be/8z7mYjCD558) or
 [in the repository](films/hunch-hackathon-video/hunch-hackathon.mp4). It follows a person from a
-hunch to a portfolio, and its middle is real screens of the Hunch site on the local stack: the
-thesis critique arriving from Muse Spark 1.3, research 1 by Muse Wonder 1.0 with its roles and cited
-evidence, and the basket the guardrails built from it, followed by a chapter on how Hunch uses Muse
-(the four jobs, the Meta Model API, the schema, the recorded request and the test that pins every
-deployed model call to Muse). The funding, daily-review and sharing scenes are styled cards with
-illustrative data, and Hunch inside the Muse app is labelled coming soon
+hunch to a portfolio on real screens of the Hunch site on the local stack: the thesis critique
+arriving from Muse Spark 1.3, research 1 by Muse Wonder 1.0 with its roles and cited evidence, the
+basket the guardrails built from it, a chapter on how Hunch uses Muse (the four jobs, the Meta
+Model API, the schema, the recorded request and the test that pins every deployed model call to
+Muse), the real Alpaca paper account linked through the hosted connector, a $10,000 funding whose
+eight orders filled on Hunch's simulated venue, the daily review Muse Spark 1.3 answered, and the
+published take on the leaderboard. The opening, the take form and the Muse-app scene are styled
+cards, and Hunch inside the Muse app is labelled coming soon
 ([`films/hunch-hackathon-video`](films/hunch-hackathon-video)).
 
 **The marketing cut (3:00).** [On YouTube](https://youtu.be/wKARzkQHrqU) or
