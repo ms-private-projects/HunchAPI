@@ -67,8 +67,9 @@ It defines each role precisely. `pure_play`, for example, means the thesis is th
 business, and the prompt describes every field of the answer.
 
 The evidence it cites is a numbered list:
-- price facts computed from Hunch's daily bars, which are synthetic today (a deterministic series
-  per instrument, until a market-data provider is connected);
+- price facts computed from Hunch's daily bars. With `HUNCH_BARS_PROVIDER=alpaca` these are the
+  Alpaca connector's stored bars ([ADR 0009](adrs/0009-daily-bars-come-from-the-connected-venue.md));
+  every run below used synthetic bars, a deterministic series per instrument;
 - news and fundamentals, when a Finnhub key is configured.
 
 The [response schema](../src/hunch/research/inference.py#L97) bounds the answer:

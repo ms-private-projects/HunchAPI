@@ -11,8 +11,8 @@ Meta's Muse models do all of its reasoning: Muse Wonder 1.0 researches each thes
 
 Hunch gives no investment advice: the person writes the thesis and its limits, Muse proposes
 candidates, code sizes them under those limits, and money moves only at the person's own broker,
-on their approval or inside autopilot limits they set; live trading stays off until the broker
-connector's execution release is in place and the account's broker keys are stored on it.
+on their approval or inside autopilot limits they set. Until a pending Markets API deploy lets the
+broker connector submit orders, they fill on Hunch's simulated venue.
 
 - Watch the [three-minute film](https://youtu.be/8z7mYjCD558): real screens of Muse at work in
   Hunch ([also in the repository](films/hunch-hackathon-video/hunch-hackathon.mp4)).
@@ -115,8 +115,8 @@ uv run scripts/check_example_research.py    # the stored Muse research and its r
 | Research, critique, daily review | Live on Muse through the Meta Model API; every call is a recorded request | [docs/muse.md](docs/muse.md), [a stored answer](docs/examples/README.md) |
 | The Hunch Agent | Live on Muse Spark 1.3, acting through 16 MCP tools | [The Hunch Agent](#the-hunch-agent) |
 | Weights, limits, orders | Decided in code, never by a model; 189 tests, of which 186 run with no credentials and 3 skip without the local MetaTables runtime | [docs/walkthrough.md](docs/walkthrough.md) |
-| Daily prices | **Synthetic**: a deterministic series per instrument, until a market-data provider (Alpaca bars) is connected. Returns, price facts and the leaderboard are not market data yet | [`market_data/`](src/hunch/market_data) |
-| Trading | **Simulated venue** end to end (proposals, orders, fills, reconciliation) through the same connector port the live venues use; hosted trading waits for the broker connectors' execution release | [Status](#status), [ADR 0003](docs/adrs/0003-funding-and-execution-through-connectors.md) |
+| Daily prices | **Still synthetic for the demo take.** The `alpaca` bars provider (`HUNCH_BARS_PROVIDER`, default `synthetic`) reads the Alpaca connector's stored daily bars (SIP, split- and dividend-adjusted) through the runtime grant. Every bar row records its provenance (`interpolated` = synthetic), and instruments the venue lacks, such as BIL, keep synthetic bars. The connector's stored bars stop at 2026-09-04 because its nightly bars Job ran an outdated image. That Job now follows the connector's main (alpaca-connectors PR 7, merged 4 Nov), and the catch-up waits on a platform deploy. Until then returns, price facts and the leaderboard are not market data | [ADR 0009](docs/adrs/0009-daily-bars-come-from-the-connected-venue.md), [`market_data/`](src/hunch/market_data) |
+| Trading | **Fills on Hunch's simulated venue**, end to end (proposals, orders, fills, reconciliation), through the same connector port the live venues use. The hosted Alpaca connector holds the paper account's keys and receives Hunch's proposals, but its order submit fails on the Production Markets API (see below) | [Status](#status), [ADR 0003](docs/adrs/0003-funding-and-execution-through-connectors.md) |
 | Broker credentials | Never in Hunch: the Alpaca and Interactive Brokers connectors hold them | [Architecture](#architecture) |
 | The films | Hackathon cut: the critique, research, basket, funding, daily-review and leaderboard scenes are captures of the site on the local stack (fills on the simulated venue); its opening, take form and Muse-app scenes, and the whole marketing cut, are styled cards with illustrative data, and both say so | [Demo film](#demo-film) |
 
@@ -124,9 +124,9 @@ uv run scripts/check_example_research.py    # the stored Muse research and its r
 
 | | Today |
 | --- | --- |
-| Runs hosted | The API with its MCP server, the Hunch Agent and the Jobs, on a Production Environment on Main Sequence. The hosted Alpaca connector links the paper account and receives Hunch's proposals |
-| Blocks real fills | The account's broker keys, stored on the connector; Hunch never holds them |
-| Blocks real prices | A market-data provider (Alpaca bars), being connected today |
+| Runs hosted | The Hunch API with its MCP server, the Hunch Agent and their Jobs, on a development Environment on Main Sequence. The Alpaca connector and the Markets API used for trading run on Production. The connector links the paper account, holds its keys (stored on 4 Nov at 13:19 UTC, imported from platform Secrets; Hunch never saw them) and receives Hunch's proposals |
+| Blocks real fills | The connector's order submit fails on the Production Markets API: ms-markets 3.0.2 does not attach the OrderManager resource to its v1 runtime. The fix is released as ms-markets 3.0.3 (MainSequenceMarkets PRs 36 and 38); its Production deploy is pending |
+| Blocks real prices | The connector's bars catch-up, which waits on a platform deploy; Hunch's `alpaca` bars provider is ready ([ADR 0009](docs/adrs/0009-daily-bars-come-from-the-connected-venue.md)) |
 | Hosted runs on record | On development: build JobRun `4c8c75e8` with request `2e564635` and critique request `0d665f6c` (1 Nov, [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md)); builds `e08fe607` and `650866bb` ([ADR 0006](docs/adrs/0006-hunch-behind-the-markets-api.md)) and research `a037d2e2` ([ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md)) on 2 Nov |
 
 **Muse at work, in thirty seconds.** One candidate from the [stored research](docs/examples/muse-wonder-research.json)
@@ -447,6 +447,7 @@ records as a connector does).
 | `HUNCH_INFERENCE_PROVIDER`, `_MODEL`, `_THINKING`, `_CREDENTIAL` | The recorded-inference selection every model role starts from (credential = a configured credential's `custom_id`) |
 | `HUNCH_MODEL_<ROLE>` | Per-role overrides for `RESEARCH`, `REVIEW` and `ANALYSIS`, as space-separated `key=value` pairs, for example `"model=muse-wonder-1.0 thinking=medium"` (ADR 0007) |
 | `HUNCH_CONNECTOR_MODE` | `simulated` or `live`; live calls `HUNCH_ALPACA_CONNECTOR_URL` / `HUNCH_IBKR_CONNECTOR_URL` |
+| `HUNCH_BARS_PROVIDER` | `synthetic` (default) or `alpaca`: the Alpaca connector's stored daily bars, with synthetic bars only for instruments it lacks (ADR 0009) |
 | `HUNCH_REVIEW_DISPATCH` | `job` makes the scheduled review sweep start one review Job run per active take, three at a time |
 | `HUNCH_EMAIL_SENDER` | `outbox` (writes `.hunch-outbox/*.eml`), `platform` or `smtp`; `HUNCH_SITE_URL` sets the links |
 
@@ -523,10 +524,13 @@ tags: a push builds nothing until a tag matching `v<major>.<minor>.<patch>` poin
 
 ## Status
 
-**Works today, hosted on Main Sequence (development):**
+**Works today, hosted on Main Sequence** (the API and the Agent on a development Environment; the
+Alpaca connector and the Markets API used for trading on Production):
 - writing a take from the site;
 - research on Muse Wonder 1.0, and a build from it;
-- the thesis critique and the Hunch Agent on Muse Spark 1.3.
+- the thesis critique and the Hunch Agent on Muse Spark 1.3;
+- the Alpaca paper account linked through the connector, which holds its keys and receives
+  Hunch's proposals.
 
 **Works locally end to end with the simulated venue:**
 - practice;
@@ -540,10 +544,11 @@ tags: a push builds nothing until a tag matching `v<major>.<minor>.<patch>` poin
 Their Jobs are deployed hosted as well.
 
 **Next:**
-- Hosted trading waits for the broker connectors' execution release (plan §6.1).
+- Real fills on the Alpaca paper account wait on the ms-markets 3.0.3 deploy to the Production
+  Markets API.
 - Interactive Brokers executes manually (ADR 0003).
 - Inbound email replies wait on a platform channel (ADR 0004).
-- Daily prices come from a market-data provider (Alpaca bars) instead of the synthetic series.
+- Venue prices for the demo take wait on the connector's bars catch-up (ADR 0009).
 - Hunch inside Muse as an agent is coming soon.
 
 ## Documentation
