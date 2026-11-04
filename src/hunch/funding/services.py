@@ -34,6 +34,7 @@ from hunch.funding.ledger import (
 )
 from hunch.instruments.services import ensure_universe, instruments_by_figi
 from hunch.market_data import latest_closes, session_schedule
+from hunch.portfolios import HunchPortfolio
 from hunch.portfolios.services import hunch_portfolio_for_take
 from hunch.profiles import HunchUserProfileAccount, utc_now
 from hunch.profiles.accounts import venue_account_uid
@@ -840,7 +841,15 @@ def sync_proposal(
 
 def _activate_funding(funding: HunchFunding, take: Take, now: dt.datetime) -> None:
     HunchFunding.update(funding.uid, status="active", activated_at=now, updated_at=now)
-    Take.update(take.uid, status="active_funded", updated_at=now)
+    # A take funded straight from its build starts its record now, as a practice activation
+    # would have; one that practised first keeps the record it already has.
+    if take.activated_at is None:
+        portfolios = HunchPortfolio.filter(take_uid=take.uid, limit=1)
+        if portfolios:
+            HunchPortfolio.update(portfolios[0].uid, activated_at=now)
+        Take.update(take.uid, status="active_funded", activated_at=now, updated_at=now)
+    else:
+        Take.update(take.uid, status="active_funded", updated_at=now)
     notify(
         funding.owner_user_uid,
         "funding_active",
