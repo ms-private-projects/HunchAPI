@@ -67,7 +67,7 @@ non-Meta model.
 
 | Measure | Before 26 Oct, 17:00 UTC | During the hackathon |
 | --- | --- | --- |
-| Commits on `main` | 19 (the template commit and 18 of ours) | 64 (77%) |
+| Commits on `main` | 19 (the template commit and 18 of ours) | 65 (77%) |
 | Lines of code, tests and docs | 72% | **28%** |
 
 Each line counts for the commit that last wrote it (`git blame -w -M -C`), so moved lines and
@@ -90,7 +90,7 @@ This table maps each judging criterion to where the evidence is:
 | --- | --- |
 | **Impact** | [The idea](#the-idea), the [Concepts](#concepts) and the ontology in section 1 of the [plan](docs/planning/0001-hunch-product-and-build-proposal.md) |
 | **Use of Meta AI tooling** | [How Hunch uses Muse](docs/muse.md): the four roles Muse plays (the Agent, research, review and critique), how each call is made and bounded, the research contract, and what we measured on Muse. The decisions are [ADR 0007](docs/adrs/0007-model-roles-and-analysis-tools.md) and [ADR 0008](docs/adrs/0008-research-and-construction-are-separate-steps.md) |
-| **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 187 tests by area. Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
+| **Technical depth and execution** | [A take, end to end](docs/walkthrough.md): a sequence diagram, the code behind every step, the guardrails and the 187 tests by area (184 run with no credentials, 3 skip without the local MetaTables runtime). Also the [Architecture](#architecture) and eight [ADRs](docs/adrs/) |
 | **Demo** | The [demo film](#demo-film), [screenshots of the running site](#the-running-site), and [a real Muse Wonder research](docs/examples/README.md) with the basket built from it |
 
 **Check it in five minutes.** The tests need no credentials and no platform access: the model,
@@ -103,18 +103,41 @@ uv sync
 uv run pytest -q    # 184 passed, 3 skipped (those need the local MetaTables runtime)
 ```
 
-**What is real and what is illustrative.**
-- The code, the tests and the Muse configuration are what runs hosted on Main Sequence.
-- In the hackathon film, the critique, research and basket scenes are captures of the Hunch site
-  on the local stack; the other scenes, and the whole marketing film, are cards in the style of the
-  site with illustrative data, and both films say so. The screenshots and the research example are
-  real output.
-- Daily prices are synthetic for now: a deterministic series per instrument, until a market-data
-  provider is connected. The prices, returns and price facts the model reads are therefore not
-  market data. The reasoning, the guardrails and the flow around them are real.
-- Hosted research, the thesis critique and the Hunch Agent run on Muse today. Hosted trading waits
-  for the broker connectors' execution release. Until then orders run end to end against the
-  simulated venue (see [Status](#status)).
+**What is real and what is simulated, today.**
+
+| Part | Today | Where to check |
+| --- | --- | --- |
+| Research, critique, daily review | Live on Muse through the Meta Model API; every call is a recorded request | [docs/muse.md](docs/muse.md), [a stored answer](docs/examples/README.md) |
+| The Hunch Agent | Live on Muse Spark 1.3, acting through 16 MCP tools | [The Hunch Agent](#the-hunch-agent) |
+| Weights, limits, orders | Decided in code, never by a model; 187 tests, of which 184 run with no credentials and 3 skip without the local MetaTables runtime | [docs/walkthrough.md](docs/walkthrough.md) |
+| Daily prices | **Synthetic**: a deterministic series per instrument, until a market-data provider (Alpaca bars) is connected. Returns, price facts and the leaderboard are not market data yet | [`market_data/`](src/hunch/market_data) |
+| Trading | **Simulated venue** end to end (proposals, orders, fills, reconciliation) through the same connector port the live venues use; hosted trading waits for the broker connectors' execution release | [Status](#status), [ADR 0003](docs/adrs/0003-funding-and-execution-through-connectors.md) |
+| Broker credentials | Never in Hunch: the Alpaca and Interactive Brokers connectors hold them | [Architecture](#architecture) |
+| The films | Hackathon cut: the critique, research and basket scenes are captures of the site on the local stack; its other scenes and the whole marketing cut are styled cards with illustrative data, and both say so | [Demo film](#demo-film) |
+
+The code, the tests and the Muse configuration are what runs hosted on Main Sequence; the screenshots
+and the research example are real output.
+
+**Muse at work, in thirty seconds.** One candidate from the [stored research](docs/examples/muse-wonder-research.json)
+Muse Wonder 1.0 returned for the take "AI power and grid buildout" (recorded request
+`3ac2815c-247a-4aeb-bde5-e1d8e6174ba7`, 7 claims, 8 candidates, 65 evidence items), and the evidence
+it cites:
+
+```json
+{"ticker": "VST", "role": "pure_play", "conviction": 0.95, "citations": ["E63"],
+ "case": "Vistra is listed in the universe for power, data-center, nuclear and grid themes, making its generation fleet the closest direct expression of firm power sold to meet rising load [E63]. ...",
+ "risks": ["Merchant power prices may fall if new supply is built faster than demand, ..."]}
+{"id": "E63", "ticker": "VST", "kind": "quant", "source": "hunch bars",
+ "title": "1y return -3.5%, annualised volatility 15%, average daily volume 1,891,813"}
+```
+
+The guardrails then held VST at the take's 15% cap ([the basket](docs/examples/README.md#what-the-guardrails-built-from-it)).
+For the film's take, "AI needs power", the same path ran on the local stack on 4 November: the
+critique on Muse Spark 1.3 answered in 27.7 s, research 1 on Muse Wonder 1.0 in 42.3 s (request
+`126463af-1d27-4017-873e-c1d4f1ecbb8a`), and the build held NextEra and Vistra at 15% with 10% cash.
+Every role, model and thinking level is in [docs/muse.md](docs/muse.md#where-muse-runs), and
+[`test_every_deployed_model_call_runs_on_muse`](tests/test_model_roles.py) fails if the deploy file
+ever points a role elsewhere.
 
 ## How Main Sequence supports the build
 
